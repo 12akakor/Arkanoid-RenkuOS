@@ -70,7 +70,13 @@ Call(Machine1& machine, uint16_t address, uint16_t de, uint8_t a, uint8_t& outE)
 	machine.Write(r.sp + 1, static_cast<uint8_t>(kSentinel >> 8));
 	r.pc = address;
 
+	int traced = 0;
 	for (int step = 0; step < 200000; step++) {
+		if (getenv("TRACE_PC") != NULL && traced < 12) {
+			printf("    pc %04x a %02x de %04x hl %04x sp %04x\n",
+				r.pc, r.a, r.de, r.hl, r.sp);
+			traced++;
+		}
 		machine.StepInstruction();
 		if (r.pc == kSentinel) {
 			outE = r.e;

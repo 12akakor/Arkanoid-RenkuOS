@@ -1415,12 +1415,18 @@ handler block: what `INIT_EFFECT_FROM_PRESET` (0xB7E6) leaves behind, given the
 stack tricks in its body. The call targets were re-checked against the ROM
 bytes first, and 0xB7E6 is right (the `call` at 0xB681 is `CD E6 B7`).
 
-The probe as written does not answer it: for every preset index it reports the
-state unchanged and `e` still holding the low byte of `de`, which is the
-signature of the routine returning before its first write. That is a defect in
-the probe, not in the reading - most likely the machine is taking an interrupt
-during the single-step loop, so the routine is left before it runs. Disabling
-the VDP's interrupt or single-stepping with the interrupt line low would fix it.
+The probe as written does not answer it, and single-stepping found out why:
+
+    pc b7e6  a 00 de e5e6      ld a,(de)      <- a = state[0] = 0
+    pc b7e8  a 00 de e5e6      and a          <- zero
+    pc b803  a 00              pop af         <- pops my sentinel return address
+    pc 00f0  a fe              ret            <- and returns into nothing
+
+So the "no effect" case is not a defect in the probe's setup but a real property
+of the routine: with `a` zero it takes the `pop af` path, which *discards the
+caller's return address on purpose*, because every caller reaches it through a
+`push af` of its own. Probing the routine on its own therefore cannot work: it
+has to be entered the way the handler enters it, or not at all.
 
 So the handler block stays unwritten, and this file is the honest record of why:
 not that the code is unavailable, but that the last probe I built to settle it
