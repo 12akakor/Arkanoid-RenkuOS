@@ -1407,3 +1407,21 @@ PERIOD_EFFECT_STATE_1 for the first stream and _2 for the second.
   b853  pop af
   b854  ret
 ```
+
+### The preset engine, and what the probe could not settle
+
+`tools/preset_trace.cpp` was built to answer the one question that blocks the
+handler block: what `INIT_EFFECT_FROM_PRESET` (0xB7E6) leaves behind, given the
+stack tricks in its body. The call targets were re-checked against the ROM
+bytes first, and 0xB7E6 is right (the `call` at 0xB681 is `CD E6 B7`).
+
+The probe as written does not answer it: for every preset index it reports the
+state unchanged and `e` still holding the low byte of `de`, which is the
+signature of the routine returning before its first write. That is a defect in
+the probe, not in the reading - most likely the machine is taking an interrupt
+during the single-step loop, so the routine is left before it runs. Disabling
+the VDP's interrupt or single-stepping with the interrupt line low would fix it.
+
+So the handler block stays unwritten, and this file is the honest record of why:
+not that the code is unavailable, but that the last probe I built to settle it
+did not produce a trustworthy answer, and the alternative was to guess.
