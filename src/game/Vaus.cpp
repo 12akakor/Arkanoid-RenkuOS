@@ -1,0 +1,151 @@
+/*
+ * Copyright 2026, Akakor.
+ * All rights reserved. Distributed under the terms of the MIT License.
+ */
+
+
+#include "Vaus.h"
+
+
+Vaus::Vaus(State& state, Screen& screen)
+	:
+	fState(state),
+	fScreen(screen),
+	fSound(state),
+	fEffects(state, screen)
+{
+}
+
+
+// EXECUTE_VAUS_ACTION (0x68C4), for the states that are ported: waiting and
+// following the controls. False means the state was one of the others and
+// nothing was done, which the caller has to take as "not yet".
+bool
+Vaus::ExecuteAction()
+{
+	// The four sprites that make Vaus are put back where the start-up data
+	// has them, once.
+	if (fState.Read(GameRam::kResetVausSpritePosition) != 1) {
+		for (int i = 0; i < 4 * GameRam::kSpriteParamsLength; i++) {
+			fState.Write(GameRam::kSpriteParamsBase + i,
+				fState.Read(GameRam::kArkanoidCenteredSprites + i));
+		}
+		fState.Write(GameRam::kResetVausSpritePosition, 1);
+	}
+
+	const uint8_t action = fState.Read(GameRam::kVausTable
+		+ GameRam::kVausIdxActionState);
+	// The wait state only becomes KEEP; it does not move Vaus this tick.
+	if (action == 0) {
+		fState.Write(GameRam::kVausTable + GameRam::kVausIdxActionState,
+			GameRam::kVausActionStateKeep);
+		return true;
+	}
+	if (action != GameRam::kVausActionStateKeep)
+		return false;
+
+	// Where Vaus wants to be: over the demo's ball, at the paddle, or one step
+	// from where it is according to the controls.
+	uint8_t x;
+	if (fState.Read(GameRam::kGameState) == 0) {
+		x = static_cast<uint8_t>(fState.Read(GameRam::kBallXDemo) - 16);
+	} else if (fState.Read(GameRam::kUseVausPaddle) != 0) {
+		x = _ReadPaddle();
+	} else {
+		const uint8_t controls = fState.Read(GameRam::kControls) & 0x0f;
+		const uint8_t delta = fState.Read(
+			GameRam::kIncrementPosVausControls + 2 * controls + 1);
+		x = static_cast<uint8_t>(
+			fState.Read(GameRam::kSpriteParamsBase + GameRam::kSpriteX)
+				+ delta);
+	}
+	_Store(x);
+
+	if (fState.Read(GameRam::kVausTable + GameRam::kVausIdxResizing) != 0)
+		return false;
+
+	// The limits. A Vaus at the right cannot go past 152, and one that would
+	// leave the field on either side is put at 8.
+	x = fState.Read(GameRam::kVausX2);
+	if (x >= 153 && x < 230) {
+		x = 152;
+		fState.Write(GameRam::kVausX2, x);
+		if (fState.Read(GameRam::kPortalOpen) != 0) {
+			fState.Write(GameRam::kVausTable + GameRam::kVausIdxActionState,
+				7);
+			fSound.Add(GameRam::kSoundVausThroughPortal);
+			fEffects.AddPoints(12);
+
+			// DEACTIVE_ALL_BALLS: all three tables, all three sprites.
+			for (int ball = 0; ball < GameRam::kBallCount; ball++) {
+				fState.Write(GameRam::kBallTables
+					+ ball * GameRam::kBallTableLength
+					+ GameRam::kActive, 0);
+				fState.Write(GameRam::kBallSprites
+					+ ball * GameRam::kSpriteLength
+					+ GameRam::kSpriteY, 192);
+			}
+			x = fState.Read(GameRam::kVausX2);
+		}
+	}
+
+	if (x >= 240 || x < 9) {
+		x = 8;
+		fState.Write(GameRam::kVausX2, x);
+	}
+
+	_PutSprites(x);
+	return true;
+}
+
+
+// The keyboard's paddle is the paddle the MSX reads: an analogue value scaled
+// to 8..176, and 8 when it is below 160 - the leftmost value the original can
+// produce.
+uint8_t
+Vaus::_ReadPaddle()
+{
+	const uint16_t count = static_cast<uint16_t>(
+		fState.Read(GameRam::kPaddleCount)
+			| (fState.Read(GameRam::kPaddleCount + 1) << 8));
+
+	uint8_t position = 8;
+	if (count >= 160) {
+		const uint16_t scaled = static_cast<uint16_t>(count - 156);
+		position = scaled >= 176 ? 176 : static_cast<uint8_t>(scaled);
+	}
+
+	fState.Write(GameRam::kVausOldX,
+		fState.Read(GameRam::kSpriteParamsBase + GameRam::kSpriteX));
+	fState.Write(GameRam::kSpriteParamsBase + GameRam::kSpriteX, position);
+	fState.Write(GameRam::kVausX2, position);
+	return position;
+}
+
+
+void
+Vaus::_Store(uint8_t x)
+{
+	fState.Write(GameRam::kSpriteParamsBase + GameRam::kSpriteX, x);
+	fState.Write(GameRam::kVausX2, x);
+}
+
+
+// The Vaus is four 16-pixel-wide sprites. Without lasers they are 16 apart;
+// with them the middle two overlap, because the laser turrets make the drawn
+// Vaus wider than the plain one.
+void
+Vaus::_PutSprites(uint8_t x)
+{
+	const bool hasLaser
+		= fState.Read(GameRam::kVausTable + GameRam::kVausIdxHasLaser) == 1;
+
+	const uint8_t offset[4] = { 0, 16, static_cast<uint8_t>(hasLaser ? 16 : 32),
+		static_cast<uint8_t>(hasLaser ? 32 : 48) };
+
+	for (int sprite = 0; sprite < 4; sprite++) {
+		fState.Write(GameRam::kSpriteParamsBase
+			+ sprite * GameRam::kSpriteParamsLength + GameRam::kSpriteX,
+			static_cast<uint8_t>(x + offset[sprite]));
+	}
+}
