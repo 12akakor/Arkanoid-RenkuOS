@@ -226,9 +226,9 @@ test: $(TESTS) build/arkanoid.rom
 	./isr_test build/arkanoid.rom 400
 	./advance_test build/arkanoid.rom 400
 # The whole tick, the commands included, over the first six sound codes. A
-	# wider sweep (40 256) still differs in 30 of 5136 ticks, all of them in the
-	# delayed-repeat and volume-effect bytes of the second stream; see
-	# docs/01-progress.md before widening this.
+	# wider sweep (40 256) differs in 4 of 5356 ticks - one register-mask bit on
+	# four codes - and is not run here yet; see docs/01-progress.md before
+	# widening this.
 	./vm_test build/arkanoid.rom 12 6
 
 check-title: rom shot

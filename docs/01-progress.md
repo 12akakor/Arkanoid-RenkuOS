@@ -1607,3 +1607,32 @@ the whole command byte instead of its low nibble to `0xE5FC` made the sweep wors
 (42 failures), so the nibble is right; the difference must be in *when* the preset
 is stored - which stream runs the command, and in what order. That is the thread
 to pull next, and `WTICK` plus a watch on `0xE5FC` will show it in one run.
+
+### The volume updater's last write was two bytes too high
+
+`UPDATE_VOLUME` (0xB79B) ends two ways. When the step's sum is not zero it calls
+`STEP`; when it is zero it does `ld (ix+0),0` - it clears **the flags byte the
+routine started at**. The port cleared `state - 2`, the count, so the flags byte
+kept its old value and the whole family of `0xE5E1`/`0xE5F7` mismatches fell out
+of that one address.
+
+With it: 5056 of 5086 became 5206 of 5212. The last six were codes that start two
+voices, where the test's cartridge check only looked at the last active stream; a
+two-voice code can have one voice in the table and the other in a descriptor byte
+that is not a sound at all. Checking both streams gave 5352 of 5356.
+
+### What is left: one mask bit
+
+Four ticks differ, all `REG_MASK`, all by the bit `0x40` - the second stream's
+mixer. The routine that sets it is `CONFIGURE_CHANNEL_ENABLES` (0xB831), and the
+port reads its two channel tests as right shifts:
+
+    B840: cb 3c   sll h      ; carry = bit 7 of h, not bit 0
+    B850: cb 3c   sll h
+    B852: d8      ret c
+
+Trying the true `sll` fixed the mask and broke the voice byte for odd command
+bytes (`0xBE` became `0xB6`), so something else in that routine is still read
+wrong - most likely the initial `rrca` interacts with the shifts in a way the two
+reachable models do not capture. The way to settle it is to single-step 0xB831
+with a known command byte and a known voice byte, which is one small tool away.

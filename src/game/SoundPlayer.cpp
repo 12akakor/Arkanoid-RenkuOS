@@ -345,6 +345,7 @@ uint8_t
 SoundPlayer::_UpdateVolume(uint16_t state, uint8_t d, uint8_t a)
 {
 	uint8_t c = a;
+	const uint16_t flagsAddress = state;
 	uint8_t flags = fState.Read(state);
 	if ((flags & 0x80) == 0)
 		return c;
@@ -372,7 +373,9 @@ SoundPlayer::_UpdateVolume(uint16_t state, uint8_t d, uint8_t a)
 		if (sum != 0) {
 			_Step(state);
 		} else {
-			fState.Write(static_cast<uint16_t>(state - 2), 0);
+			// 0xB7CA: `ld (ix+0),0` - the flags byte the routine started at,
+			// not the count two bytes further on.
+			fState.Write(flagsAddress, 0);
 		}
 		return c;
 	}

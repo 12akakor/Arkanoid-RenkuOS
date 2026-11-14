@@ -80,16 +80,23 @@ Call(Machine1& machine, uint16_t address, int watch = -1)
 
 	for (int step = 0; step < 500000; step++) {
 		if (watch >= 0) {
-			// The places where a sequence ends: the repeat decrement, the
-			// chain decrement, and the two ways into the reload.
+			// Watch the bytes a sequence writes rather than the code that
+			// writes them: the difference is real behaviour, not a replay.
 			const uint16_t pc = r.pc;
-			if (pc == 0xb4c8 || pc == 0xb4d2 || pc == 0xb545
-					|| pc == 0xb54d || pc == 0xb4e1 || pc == 0xb4bf) {
-				printf("    t%d pc %04x bc %04x hl %04x a %02x"
-					" s+3 %02x s+4 %02x s+9 %02x\n", watch, pc, r.bc,
-					r.hl, r.a, machine.Ram()[0xE5D6],
-					machine.Ram()[0xE5D7], machine.Ram()[0xE5DC]);
+			static const uint16_t kWatch[4] = { 0xE5FC, 0xE5F7, 0xE5E1, 0xE5C3 };
+			uint8_t before[4];
+			for (int i = 0; i < 4; i++)
+				before[i] = machine.Ram()[kWatch[i]];
+			machine.StepInstruction();
+			for (int i = 0; i < 4; i++) {
+				if (machine.Ram()[kWatch[i]] == before[i])
+					continue;
+				printf("    t%d pc %04x: %04x %02x -> %02x\n", watch, pc,
+					kWatch[i], before[i], machine.Ram()[kWatch[i]]);
 			}
+			if (r.pc == kSentinel)
+				return true;
+			continue;
 		}
 		machine.StepInstruction();
 		if (r.pc == kSentinel)
@@ -172,15 +179,20 @@ main(int argc, char** argv)
 		// there the Z80 and the port are not looking at the same memory: the
 		// port has the cartridge and nothing else. Every code the game really
 		// plays stays inside the cartridge.
-		uint16_t sequence = 0;
+		// Every stream the code started has to be in the cartridge, not just
+		// the last one: a two-voice code can have one voice in the table and
+		// the other in a descriptor byte that is not a sound at all.
+		bool outside = false;
 		for (int index = 0; index < 2; index++) {
 			const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
 			if (state.Ram()[stream] == 0)
 				continue;
-			sequence = static_cast<uint16_t>(
+			const uint16_t sequence = static_cast<uint16_t>(
 				state.Ram()[stream + 7] | (state.Ram()[stream + 8] << 8));
+			if (sequence < 0x4000 || sequence >= 0xc000)
+				outside = true;
 		}
-		if (sequence < 0x4000 || sequence >= 0xc000) {
+		if (outside) {
 			skipped++;
 			continue;
 		}
