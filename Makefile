@@ -12,7 +12,8 @@ REF = src/ref/z80/Z80.cpp src/ref/video/Tms9918.cpp \
 	src/ref/msx1/Psg.cpp src/ref/msx1/Machine1.cpp
 GAME = src/game/Screen.cpp src/game/Renderer.cpp
 
-TOOLS = shot embed_rom mixer_trace effect_trace table_trace write_trace
+TOOLS = shot embed_rom mixer_trace effect_trace table_trace write_trace \
+	render_sounds
 TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
@@ -26,12 +27,22 @@ $(TOOLS) $(TESTS): $(HEADERS)
 
 all: $(TOOLS)
 
+# The game's own sounds, rendered to build/sounds as WAV, with the numbers
+# beside them. Not part of "make test": it takes minutes and writes files.
+sounds: render_sounds build/arkanoid.rom
+	./render_sounds build/arkanoid.rom
+
 shot: tools/shot.cpp $(REF) src/ref/msx1/Machine1.h src/ref/video/Tms9918.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/shot.cpp $(REF)
 
 write_trace: tools/write_trace.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/write_trace.cpp $(REF) \
 		src/game/SoundPlayer.cpp src/game/State.cpp src/game/RomImage.cpp
+
+render_sounds: tools/render_sounds.cpp $(REF) src/game/PsgSynth.cpp \
+		src/game/PsgSynth.h
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/render_sounds.cpp $(REF) \
+		src/game/PsgSynth.cpp
 
 table_trace: tools/table_trace.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/table_trace.cpp $(REF)

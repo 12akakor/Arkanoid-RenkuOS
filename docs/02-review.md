@@ -254,3 +254,64 @@ frequencies, volume 0, the volume-1 ratio, noise, an attack and a decay, and
 the twelve distinct envelope shapes (0x00 and 0x03 are the same shape, as are
 0x04 and 0x07). The platform's `AudioNode` hands the synth its frames; that
 file still cannot be compiled here for want of the Be headers.
+
+
+## The game's own sounds, rendered
+
+`make sounds` runs `tools/render_sounds`, which plays each of the twenty-eight
+codes in the cartridge's table on the reference machine, reads the chip's
+sixteen registers after every sound tick, hands the changes to `PsgSynth` the
+way the driver would, and renders a sixtieth of a second of audio per tick.
+The WAVs land in `build/sounds`; the numbers are the point.
+
+| code | ticks | seconds | peak | rms dB |
+| --- | --- | --- | --- | --- |
+| 0 | 2 | 0.03 | 0 | -100.0 | silent |
+| 1 | 129 | 2.15 | 10922 | -17.7 |
+| 2 | 129 | 2.15 | 10922 | -17.7 |
+| 3 | 129 | 2.15 | 10922 | -19.2 |
+| 4 | 3 | 0.05 | 9264 | -15.7 |
+| 5 | 129 | 2.15 | 10922 | -17.1 |
+| 6 | 42 | 0.70 | 9264 | -14.8 |
+| 7 | 130 | 2.17 | 10922 | -15.3 |
+| 8 | 129 | 2.15 | 10922 | -18.4 |
+| 9 | 503 | 8.38 | 10922 | -13.7 |
+| 10 | 30 | 0.50 | 10922 | -9.8 |
+| 11 | 30 | 0.50 | 10922 | -9.8 |
+| 12 | 86 | 1.43 | 9264 | -11.6 |
+| 13 | 86 | 1.43 | 9264 | -11.1 |
+| 14 | 26 | 0.43 | 9264 | -14.4 |
+| 15 | 26 | 0.43 | 7506 | -13.1 |
+| 16 | 255 | 4.25 | 9264 | -15.4 |
+| 17 | 518 | 8.63 | 9264 | -12.9 |
+| 18 | 148 | 2.47 | 9264 | -15.5 |
+| 19 | 314 | 5.23 | 9264 | -12.6 |
+| 20 | 59 | 0.98 | 9264 | -14.7 |
+| 21 | 170 | 2.83 | 9264 | -23.4 |
+| 22 | 131 | 2.18 | 9264 | -16.9 |
+| 23 | 201 | 3.35 | 9264 | -12.0 |
+| 24 | 2181 | 36.35 | 24758 | -14.5 |
+| 25 | 7541 | 125.69 | 24758 | -9.0 |
+| 26 | 264 | 4.40 | 20023 | -7.7 |
+| 27 | 262 | 4.37 | 20023 | -8.2 |
+
+What the numbers say:
+
+* **All twenty-eight stop on their own** - no sound needed the twenty-thousand
+  tick ceiling, which is the same result the tick-by-tick test reports.
+* **Code 0 is silent, and the cartridge says so**: it leaves every channel's
+  volume at zero with mixer `0xbf`, so the chip is asked for nothing audible.
+  It runs for two ticks: it is the "stop everything" entry, not a sound.
+* **Nothing clips.** The effects peak at 7506 to 10922 of 32767; the two long
+  pieces (codes 24 and 25, 36 and 126 seconds) peak at 24758 because more than
+  one channel is at full volume at once, and codes 26 and 27 at 20023. RMS
+  runs from -23.4 dB to -7.7 dB.
+* **The tones are the ones the registers ask for.** In every tick that plays
+  one tone on one channel and nothing else, the crossings in the rendered
+  audio match `clock / (16 * period)` to the one-crossing resolution of a
+  16.7 ms window: 3659 of 3659.
+* **104 ticks play a tone above 22 kHz.** The game uses period 1, which is
+  111.9 kHz on this clock; at 44.1 kHz the synth cannot carry it and what
+  comes out is aliasing. That is the one fidelity limit this comparison
+  found, and it is a property of the sample rate rather than the chip's
+  model: the same ticks would need a 224 kHz stream to be reproduced.
