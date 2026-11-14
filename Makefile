@@ -225,6 +225,10 @@ test: $(TESTS) build/arkanoid.rom
 	./soundplayer_test build/arkanoid.rom 300
 	./isr_test build/arkanoid.rom 400
 	./advance_test build/arkanoid.rom 400
+# The whole tick, the commands included, over the first six sound codes. A
+	# wider sweep (40 256) still finds the stream tail wrong for some codes;
+	# see docs/01-progress.md before widening this.
+	./vm_test build/arkanoid.rom 12 6
 
 check-title: rom shot
 	./shot build/arkanoid.rom 300 build/title.png -vram build/title.vram

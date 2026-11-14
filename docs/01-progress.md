@@ -1505,3 +1505,34 @@ dispatcher at all. So a call to the dispatcher runs one command and returns, and
 The command has to be tested where it really runs, which is what `vm_test` does
 by calling the ISR. `command_test` stays in the tree as the record of that, not
 as a passing check.
+
+### The command VM, closed
+
+`vm_test` compares a whole tick - registers, streams, variables - for every sound
+code. It went from 45 of 70 to 72 of 72 over the first six codes, and 7988 of
+8054 over all 256, when four things were corrected. All four were found by
+single-stepping the original rather than by reading it:
+
+- `CONFIGURE_CHANNEL_ENABLES` (0xB831) turns one channel off and another on, and
+  its two arms differ: the `and l / ld l,a` arm *replaces* L, the `or l` arm ORs
+  into it. Written as one OR, a cleared bit came back. Voice control is now
+  byte-exact.
+- The handlers load their own `DE` (`0x1002`, `0x0801`, `0x2004`); the parameter
+  is not what goes in them. `E` is then reused by the envelope and volume write.
+- The same routine ends `srl h / ret c / pop af / ret`, so with the carry clear
+  it returns *past* its caller and the rest of the command never runs.
+- `INIT_EFFECT_FROM_PRESET` (0xB7E6) does the same for a preset of zero. The port
+  read that as "volume zero" and silenced notes the original keeps.
+
+The lesson is the one this project keeps relearning: `and l` modifying A, or a
+`pop af` before a `ret`, changes the result, and reading the listing is not the
+same as watching it run. `tests/vm_test.cpp` gained a `WATCH` mode for this: on a
+mismatch it replays the tick instruction by instruction and prints the PC that
+changed the byte. That is what identified 0xB693 as the only writer of the
+volume, and 0xB7E6's second exit as the reason the port had a second one.
+
+Two failures remain in the wider sweep (40 ticks, 256 codes), both at the end of
+a sequence: the chain count at `0xE5D7` is one low, and the first stream's
+volume-effect state at `0xE5E1` reads 0x81 where the original has 0x00. The tail
+of `ADVANCE` is the place to look; `advance_test` does not cover it because it
+runs idle streams. `make test` runs the six-code sweep, which passes.

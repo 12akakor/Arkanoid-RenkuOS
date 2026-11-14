@@ -132,16 +132,16 @@ private:
 							uint8_t d, uint8_t e);
 			uint16_t	_Effect(uint16_t stream, uint16_t bc, uint16_t hl,
 							uint8_t a, uint8_t e);
-			uint8_t		_InitEffect(uint16_t state);
+			bool		_InitEffect(uint16_t state, uint8_t& volume);
 			void		_Mask(uint8_t d);
-			void		_MixerMask(uint16_t stream, uint8_t d, uint8_t e,
-							uint16_t bc);
+			bool		_MixerMask(uint16_t stream, uint8_t d, uint8_t& e,
+							uint16_t bc, bool clearChannel);
 			void		_Volume(uint8_t d, uint8_t value);
 			uint16_t	_UpdatePeriod(uint16_t state, uint8_t d,
 							uint16_t accumulator);
 			uint8_t		_UpdateVolume(uint16_t state, uint8_t d, uint8_t a);
 			uint8_t		_UpdateDelay(uint8_t d, uint8_t c);
-			void		_Step(uint16_t& hl);
+			uint8_t		_Step(uint16_t& hl);
 			uint16_t	Read16(uint16_t address);
 			void		Write16(uint16_t address, uint16_t value);
 

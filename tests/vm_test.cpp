@@ -201,6 +201,63 @@ main(int argc, char** argv)
 						printf(" %02x", state.Ram()[0xE5C0 + i]);
 					printf("\n");
 				}
+				if (getenv("WATCH") != NULL) {
+					// Who wrote it in the original? Replay the tick
+					// instruction by instruction and report each change.
+					memcpy(machine.Ram(), initial.data(),
+						initial.size());
+					Z80Regs& r = machine.Cpu().r;
+					if (!Call(machine, kIsr)) {
+						// Call() runs it; so replay by hand instead.
+					}
+					memcpy(machine.Ram(), initial.data(),
+						initial.size());
+					r.halted = false;
+					r.iff1 = false;
+					r.iff2 = false;
+					r.sp = 0xF000;
+					machine.Write(--r.sp, 0xfe);
+					machine.Write(--r.sp, 0xfe);
+					r.pc = kIsr;
+					uint8_t last = machine.Ram()[address];
+					for (int step = 0; step < 200000; step++) {
+						const uint16_t pc = r.pc;
+						machine.StepInstruction();
+						if (machine.Ram()[address] == last)
+							continue;
+						printf("    watch %04x: %02x -> %02x at"
+							" pc %04x bc %04x\n", address, last,
+							machine.Ram()[address], pc, r.bc);
+						last = machine.Ram()[address];
+						if (r.pc == kSentinel)
+							break;
+					}
+				}
+				if (getenv("WATCH") != NULL) {
+					// Which instruction wrote it in the original? Replay
+					// the tick by hand and report every change.
+					memcpy(machine.Ram(), initial.data(),
+						initial.size());
+					Z80Regs& w = machine.Cpu().r;
+					w.halted = false;
+					w.iff1 = false;
+					w.iff2 = false;
+					w.sp = 0xF000;
+					machine.Write(--w.sp, 0xfe);
+					machine.Write(--w.sp, 0xfe);
+					w.pc = kIsr;
+					uint8_t last = machine.Ram()[address];
+					for (int step = 0; step < 200000; step++) {
+						const uint16_t pc = w.pc;
+						machine.StepInstruction();
+						if (machine.Ram()[address] == last)
+							continue;
+						printf("    watch %04x: %02x -> %02x at"
+							" pc %04x bc %04x\n", address, last,
+							machine.Ram()[address], pc, w.bc);
+						last = machine.Ram()[address];
+					}
+				}
 				failed++;
 				differs = true;
 				break;

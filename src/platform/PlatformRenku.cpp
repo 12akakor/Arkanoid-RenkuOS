@@ -138,10 +138,11 @@ GameView::Draw(BRect updateRect)
 		uint8* row = bits + y * bytesPerRow;
 		for (int x = 0; x < Game::kWidth; x++) {
 			const uint32 rgb = Game::Colour(frame[y * Game::kWidth + x]);
-			// B_RGB32 is little endian: blue, green, red, unused.
-			row[x * 4 + 0] = (rgb >> 16) & 0xff;
+			// The palette holds 0xRRGGBB and B_RGB32 is little endian, so the
+			// bytes go out as blue, green, red, unused - blue first.
+			row[x * 4 + 0] = rgb & 0xff;
 			row[x * 4 + 1] = (rgb >> 8) & 0xff;
-			row[x * 4 + 2] = rgb & 0xff;
+			row[x * 4 + 2] = (rgb >> 16) & 0xff;
 			row[x * 4 + 3] = 0xff;
 		}
 	}

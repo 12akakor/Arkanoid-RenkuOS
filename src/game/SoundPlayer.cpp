@@ -584,7 +584,7 @@ SoundPlayer::_Effect(uint16_t stream, uint16_t bc, uint16_t hl, uint8_t a,
 // LOAD_NEXT_EFFECT_PRESET_STEP (0xB807). HL points at the byte that counts
 // through a preset block; the three bytes below it are the tick period, the
 // level and the level with its two flag bits.
-void
+uint8_t
 SoundPlayer::_Step(uint16_t& hl)
 {
 	fState.Write(hl, static_cast<uint8_t>(fState.Read(hl) + 1));
@@ -608,6 +608,9 @@ SoundPlayer::_Step(uint16_t& hl)
 	fState.Write(hl, level);
 	--hl;
 	fState.Write(hl, static_cast<uint8_t>(level | flags));
+
+	// The byte the step loader leaves in E: the command uses it as the volume.
+	return step;
 }
 
 
@@ -617,12 +620,16 @@ SoundPlayer::_Step(uint16_t& hl)
 // take the first step. The value returned is the volume the command puts in
 // the register image: the block's low nibble when the block opens with bit 7
 // set, the first step's own byte when it does not.
-uint8_t
-SoundPlayer::_InitEffect(uint16_t state)
+bool
+SoundPlayer::_InitEffect(uint16_t state, uint8_t& volume)
 {
+	// A preset of zero is not "no effect yet": the routine returns two levels
+	// up, so the command that called it stops there and the volume the stream
+	// already has is left alone. That is why a command early in a sequence
+	// keeps its volume instead of being silenced by the next one.
 	const uint8_t preset = fState.Read(state);
 	if (preset == 0)
-		return 0;
+		return false;
 
 	const uint16_t block = static_cast<uint16_t>(0xb400
 		| fState.Read(0xb4ae + preset));
@@ -632,20 +639,29 @@ SoundPlayer::_InitEffect(uint16_t state)
 	fState.Write(state - 2, static_cast<uint8_t>(block & 0xff));
 
 	uint16_t hl = static_cast<uint16_t>(state - 2);
-	_Step(hl);
+	const uint8_t step = _Step(hl);
 
-	return (header & 0x80) != 0
+	volume = (header & 0x80) != 0
 		? static_cast<uint8_t>(header & 0x0f)
-		: fState.Read(block + 1);
+		: step;
+	return true;
 }
 
 
 // UPDATE_MIXER_FROM_CHANNEL_MASK (0xB82D): clears the stream's channel byte and
 // folds the two new channel bits into the voice control register.
-void
-SoundPlayer::_MixerMask(uint16_t stream, uint8_t d, uint8_t e, uint16_t bc)
+//
+// It returns true when the handler must abandon the rest of its body. The
+// routine ends `ld e,0x10 / srl h / ret c / pop af / ret`: with the carry set it
+// goes back to the handler, and with it clear the `pop af` throws away the
+// handler's return address so the return goes to the dispatcher instead. That
+// is not a trick to read past - it decides whether the command sets its mask.
+bool
+SoundPlayer::_MixerMask(uint16_t stream, uint8_t d, uint8_t& e, uint16_t bc,
+	bool clearChannel)
 {
-	fState.Write(stream + 11, 0);
+	if (clearChannel)
+		fState.Write(stream + 11, 0);
 
 	uint8_t l = fState.Read(kVoiceControl);
 	const uint8_t command = fState.Read(bc);
@@ -653,23 +669,24 @@ SoundPlayer::_MixerMask(uint16_t stream, uint8_t d, uint8_t e, uint16_t bc)
 	bool carry = (command & 0x01) != 0;
 	uint8_t h = static_cast<uint8_t>((command >> 1) | (carry ? 0x80 : 0));
 
-	uint8_t a = e;
-	if (carry) {
-		a = static_cast<uint8_t>(~a);
-		l = static_cast<uint8_t>(l & a);
-	}
-	l = static_cast<uint8_t>(l | a);
+	// The two branches are not the same operation: with the carry set the
+	// channel is turned off, `and l` then replaces L outright; with it clear
+	// the value is merely OR'd in. Doing both as an OR leaves the bit on.
+	uint8_t a = carry ? static_cast<uint8_t>(~e & l)
+		: static_cast<uint8_t>(e | l);
+	l = a;
 
 	carry = (h & 0x01) != 0;
 	h = static_cast<uint8_t>(h >> 1);
 
-	a = d;
-	if (carry) {
-		a = static_cast<uint8_t>(~a);
-		l = static_cast<uint8_t>(l & a);
-	}
-	a = static_cast<uint8_t>(l | a);
-	fState.Write(kVoiceControl, static_cast<uint8_t>(a | 0x80));
+	a = carry ? static_cast<uint8_t>(~d & l) : static_cast<uint8_t>(d | l);
+	l = a;
+
+	fState.Write(kVoiceControl, static_cast<uint8_t>(l | 0x80));
+
+	e = 0x10;
+	const bool carry3 = (h & 0x01) != 0;
+	return !carry3;
 }
 
 
@@ -681,7 +698,7 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 	bool primaryTable)
 {
 	const uint8_t index = static_cast<uint8_t>((command >> 4) & 0x07);
-	const uint8_t e = static_cast<uint8_t>(command & 0x0f);
+	uint8_t e = static_cast<uint8_t>(command & 0x0f);
 	uint16_t state = static_cast<uint16_t>(stream + 11);	// period effect
 
 	if (primaryTable) {
@@ -696,8 +713,12 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 
 			case 2:
 				if ((e & 0x08) != 0) {
-					_MixerMask(stream, 0x08, 0x02, bc);
-					fState.Write(kEnvelopeShape, e);
+					// ld de,0x1002: D is the channel bit, E the new mixer
+					// value, and E is what the envelope write below uses.
+					uint8_t mixer = 0x02;
+					if (_MixerMask(stream, 0x10, mixer, bc, true))
+						return bc;
+					fState.Write(kEnvelopeShape, mixer);
 					_Mask(0x20);
 					return bc;
 				}
@@ -734,7 +755,9 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 
 			case 5: {
 				bc = _Note(stream, bc, kAuxPeriodHi, 0x04, e);
-				const uint8_t volume = _InitEffect(0xe5fc);
+				uint8_t volume;
+				if (!_InitEffect(0xe5fc, volume))
+					return bc;
 				_Volume(0x40, volume);
 				return bc;
 			}
@@ -745,15 +768,20 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 
 			default: {
 				if ((e & 0x08) != 0) {
-					_MixerMask(stream, 0x02, 0x00, bc);
+					// ld de,0x2004.
+					uint8_t mixer = 0x04;
+					if (_MixerMask(stream, 0x20, mixer, bc, false))
+						return bc;
 					fState.Write(0xe5fc, 0);
 					fState.Write(0xe5f7, 0);
-					_Volume(0x40, e);
+					_Volume(0x40, mixer);
 					return bc;
 				}
 				fState.Write(0xe5fc, e);
 				if (e != 0) {
-					const uint8_t volume = _InitEffect(0xe5fc);
+					uint8_t volume;
+					if (!_InitEffect(0xe5fc, volume))
+						return bc;
 					_Volume(0x40, volume);
 				} else {
 					fState.Write(0xe5f7, 0);
@@ -766,7 +794,9 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 	switch (index) {
 		case 0: {
 			bc = _Note(stream, bc, 0xe5c5, 0x01, e);
-			const uint8_t volume = _InitEffect(0xe5e6);
+			uint8_t volume;
+			if (!_InitEffect(0xe5e6, volume))
+				return bc;
 			uint8_t status = static_cast<uint8_t>(
 				fState.Read(kDelayStatus) & 0x1f);
 			if (status != 0) {
@@ -792,11 +822,14 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 
 		case 2:
 			if ((e & 0x08) != 0) {
-				_MixerMask(stream, 0x08, 0x01, bc);
+				// ld de,0x0801.
+				uint8_t mixer = 0x01;
+				if (_MixerMask(stream, 0x08, mixer, bc, true))
+					return bc;
 				fState.Write(kDelayStatus, 0);
 				fState.Write(0xe5e6, 0);
 				fState.Write(0xe5e1, 0);
-				_Volume(0x10, e);
+				_Volume(0x10, mixer);
 				return bc;
 			}
 			return _Effect(stream, bc, state, e, e);
@@ -808,7 +841,9 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 				return bc;
 			}
 			{
-				const uint8_t volume = _InitEffect(0xe5e6);
+				uint8_t volume;
+				if (!_InitEffect(0xe5e6, volume))
+					return bc;
 				uint8_t status = static_cast<uint8_t>(
 					fState.Read(kDelayStatus) & 0x1f);
 				if (status != 0) {
