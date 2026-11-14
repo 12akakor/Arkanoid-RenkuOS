@@ -1636,3 +1636,27 @@ bytes (`0xBE` became `0xB6`), so something else in that routine is still read
 wrong - most likely the initial `rrca` interacts with the shifts in a way the two
 reachable models do not capture. The way to settle it is to single-step 0xB831
 with a known command byte and a known voice byte, which is one small tool away.
+
+### The sweep is in the suite, with its four mismatches on the record
+
+`make test` now runs `./vm_test build/arkanoid.rom 40 256 4`: every sound code,
+forty ticks each, with a budget of four mismatches. It prints the budget and the
+count, and a fifth mismatch fails the build. The number is meant to fall to zero;
+it is not a licence to drift.
+
+`tools/mixer_trace.cpp` is the instrument for finishing it. It runs
+`CONFIGURE_CHANNEL_ENABLES` (0xB831) on the reference machine with a chosen
+command byte, `E`, `D` and voice byte, prints `A`, `H`, `L` and the carry at every
+instruction, and says whether the routine returned to its caller or past it.
+
+It settles one thing already: `0xCB 0x3C` is **SRL H**, not SLL. The carry comes
+from bit 0, the port's right shift is correct, and the trace of command 0xA9
+(e=01 d=08 voice=bf) reproduces 0xBE and the "returns past the handler" ending
+exactly as the port models it.
+
+So the four remaining ticks are not in the shifts. For code 197 the port's mask
+reaches 0x31 and the original 0x71, and the missing bit is 0x40, which only the
+primary table's shared tail sets. The port runs `d1 a8 f8 90 e0` across the two
+streams for that tick and none of those sets it, so the difference is which
+commands the streams run, not what a command does - the next trace is a dispatch
+comparison, not another routine.

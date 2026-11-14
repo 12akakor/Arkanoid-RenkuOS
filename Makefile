@@ -12,7 +12,7 @@ REF = src/ref/z80/Z80.cpp src/ref/video/Tms9918.cpp \
 	src/ref/msx1/Psg.cpp src/ref/msx1/Machine1.cpp
 GAME = src/game/Screen.cpp src/game/Renderer.cpp
 
-TOOLS = shot embed_rom
+TOOLS = shot embed_rom mixer_trace
 TESTS = rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
@@ -28,6 +28,9 @@ all: $(TOOLS)
 
 shot: tools/shot.cpp $(REF) src/ref/msx1/Machine1.h src/ref/video/Tms9918.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/shot.cpp $(REF)
+
+mixer_trace: tools/mixer_trace.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/mixer_trace.cpp $(REF)
 
 embed_rom: tools/embed_rom.cpp tools/png.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/embed_rom.cpp
@@ -225,11 +228,11 @@ test: $(TESTS) build/arkanoid.rom
 	./soundplayer_test build/arkanoid.rom 300
 	./isr_test build/arkanoid.rom 400
 	./advance_test build/arkanoid.rom 400
-# The whole tick, the commands included, over the first six sound codes. A
-	# wider sweep (40 256) differs in 4 of 5356 ticks - one register-mask bit on
-	# four codes - and is not run here yet; see docs/01-progress.md before
-	# widening this.
-	./vm_test build/arkanoid.rom 12 6
+# Every sound code, forty ticks each: the whole tick, commands included. Four
+	# ticks still differ, all one register-mask bit on two-voice codes, so the run
+	# is allowed four mismatches and no more; see docs/01-progress.md. Tighten the
+	# 4 to 0 when the mixer routine is settled.
+	./vm_test build/arkanoid.rom 40 256 4
 
 check-title: rom shot
 	./shot build/arkanoid.rom 300 build/title.png -vram build/title.vram
