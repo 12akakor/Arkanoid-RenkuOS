@@ -1431,3 +1431,27 @@ has to be entered the way the handler enters it, or not at all.
 So the handler block stays unwritten, and this file is the honest record of why:
 not that the code is unavailable, but that the last probe I built to settle it
 did not produce a trustworthy answer, and the alternative was to guess.
+
+### Probing the handlers the way the dispatcher calls them
+
+`tools/handler_trace.cpp` enters each of the sixteen handlers with the frame the
+dispatcher builds - stream in IX, command byte address in BC, parameter in A and
+E, handler address in HL - and prints every byte in 0xE5C0-0xE5FE that changed.
+The first results, matching the listing exactly:
+
+    primary 0 param P: period low = next sequence byte, period high = P,
+                       stream+12 = stream[11] & 7, stream+13 negated if its
+                       bit 7 was set, mask |= 0x02
+    primary 1 param P: envelope shape = P, mask |= 0x20
+    primary 2 param P: period effect state 2 = P | 0xC1, +1 = P,
+                       +2 = next sequence byte
+    secondary 0 param P: as primary 0 on channel A (mask 0x01), then the
+                       delayed-effect preset is set up and the volume control
+                       gets the preset's value
+
+The preset engine writes five bytes below the state it is given - for
+`DELAYED_EFFECT_STATE_A_STREAM1` that is 0xE5E5 down to 0xE5E1 - which is the
+"three bytes below the pointer" in the listing, seen for the first time.
+
+The engine's arithmetic is not yet derived, so the preset-dependent commands
+(secondary 0, 1, 2, 3 and primary 5, 7) still cannot be written.

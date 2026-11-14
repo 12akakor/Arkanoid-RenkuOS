@@ -86,7 +86,11 @@ public:
 	// The write of the thirteen registers and the mixer, on its own.
 	void				WriteRegisters();
 
-	// ADVANCE_SOUND_STREAM_IF_READY (0xB47A): one tick of the stream's own
+	// DISPATCH_PRIMARY_SOUND_COMMAND (0xB63E) / _SECONDARY (0xB649): run
+	// commands until one asks to wait. Returns the new stream pointer.
+	uint16_t			Dispatch(uint16_t stream, uint16_t pointer, bool primary);
+
+	// ADVANCE_SOUND_STREAM_IF_READY (0xB4B5): one tick of the stream's own
 	// state machine, with 'pointer' as SOUND_PTR_1 or 2. Returns the carry:
 	// set means the stream has a command waiting to be dispatched.
 	bool				Advance(uint16_t stream, uint16_t pointer);
@@ -107,6 +111,17 @@ public:
 
 private:
 			void		_Reload(uint16_t stream, uint16_t descriptor);
+			uint16_t	_Command(uint16_t stream, uint16_t bc,
+							uint8_t command, bool primary);
+			uint16_t	_Note(uint16_t stream, uint16_t bc, uint16_t hl,
+							uint8_t d, uint8_t e);
+			uint16_t	_Effect(uint16_t stream, uint16_t bc, uint16_t hl,
+							uint8_t a, uint8_t e);
+			uint8_t		_InitEffect(uint16_t state);
+			void		_Mask(uint8_t d);
+			void		_MixerMask(uint16_t stream, uint8_t d, uint8_t e,
+							uint16_t bc);
+			void		_Volume(uint8_t d, uint8_t value);
 
 			State&		fState;
 			PsgSink*	fSink;
