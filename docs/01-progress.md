@@ -1918,3 +1918,24 @@ commands on one tick that the original does, then both converge again.
 
 The next person should not start from a theory. Start from a full instruction trace
 of that one call on both sides and diff them, which is mechanical and settles it.
+
+### The reload path, decoded and tested
+
+The instruction diff lands on the same continuation for both a repeat and a chain:
+
+    0xB4CF  jr 0xB54D          ; repeat exhausted, reuse the descriptor
+    0xB4DF  jr 0xB545          ; chain, descriptor + 3
+    0xB545  inc hl / ld (hl),d
+    0xB548  ld a,(bc) / and 0x0F / ld (hl),a   ; the new repeat nibble
+    0xB54D  ld (hl),c / inc hl / ld (hl),b     ; the new sequence pointer
+    0xB551  inc bc / ld a,(bc) / ld (hl),a     ; the wait byte into ticks
+    0xB554  inc bc / ld a,(bc) / ld (hl),a
+    0xB559  ld (hl),1
+
+So a reload writes the pointer, the repeat nibble and the wait into the stream, and
+`B4B5`'s carry is left to whatever the stores left it — there is no `scf` on this
+path as there is on the "dispatch this command" path at 0xB4C1.
+
+Making both reloads dispatch in the same tick was tried and measured: the sweep went
+to 4890 of 4906 with sixteen differences, so it is wrong and it is reverted. The
+port keeps `false` there, which is the model that measures best.
