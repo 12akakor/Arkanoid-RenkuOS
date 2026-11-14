@@ -106,6 +106,13 @@ public:
 	// commands until one asks to wait. Returns the new stream pointer.
 	uint16_t			Dispatch(uint16_t stream, uint16_t pointer, bool primary);
 
+	// D as it stands in the middle of a tick. The ISR is a register machine:
+	// 0xB60F puts 0x10 there, the preset step at 0xB814 replaces it with the
+	// channel mask of the step it just loaded, and the delayed repeat effect
+	// at 0xB759 then asks for whatever is left in D. Carrying it in a member
+	// keeps that order instead of assuming the constant.
+	uint8_t				fStepMask;
+
 	// ADVANCE_SOUND_STREAM_IF_READY (0xB4B5): one tick of the stream's own
 	// state machine, with 'pointer' as SOUND_PTR_1 or 2. Returns the carry:
 	// set means the stream has a command waiting to be dispatched.

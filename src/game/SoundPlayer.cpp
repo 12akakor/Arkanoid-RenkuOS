@@ -11,6 +11,7 @@
 
 SoundPlayer::SoundPlayer(State& state, PsgSink* sink)
 	:
+	fStepMask(0x10),
 	fState(state),
 	fSink(sink)
 {
@@ -278,9 +279,12 @@ SoundPlayer::Tick()
 		accumulator);
 	Write16(kRegsBuffer, accumulator);
 
+	// 0xB60F: `ld d,16` before the first volume effect, so the delay effect
+	// below asks for channel 1 unless a preset step replaced D meanwhile.
+	fStepMask = 0x10;
 	uint8_t volume = fState.Read(kVolumeControl);
 	volume = _UpdateVolume(static_cast<uint16_t>(kStream1 + 14), 0x10, volume);
-	volume = _UpdateDelay(0x10, volume);
+	volume = _UpdateDelay(fStepMask, volume);
 	fState.Write(kVolumeControl, volume);
 
 	accumulator = Read16(kPeriodControl);
@@ -608,7 +612,10 @@ SoundPlayer::_Step(uint16_t& hl)
 	const uint8_t step = fState.Read(static_cast<uint16_t>(0xb400
 		| fState.Read(hl)));
 
+	// 0xB814: `ld d,a`, the mask the rest of the tick's effect work runs
+	// with. It outlives this call, which is why it is kept.
 	const uint8_t flags = static_cast<uint8_t>(0x80 | ((step & 0xc0) >> 1));
+	fStepMask = flags;
 	const bool plain = flags == 0xe0;
 
 	--hl;

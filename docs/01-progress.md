@@ -2101,3 +2101,34 @@ code the game plays: the game's own sound numbers are `SOUND_NOP` (0xF8),
 queues in `SOUNDS_BUFFER` — the table's own sounds. So this is left as it is and
 recorded: `make test` plays the 28 to their end with no budget at all, and the
 256-code sweep stays at forty ticks, where it agrees exactly.
+
+### The code 76 difference was D outliving its owner
+
+The trace of that tick shows where `0xE0` comes from. The stream-1 volume ramp
+expires inside `UPDATE_VOLUME_EFFECT` and walks to the next preset step, which
+is `LOAD_NEXT_EFFECT_PRESET_STEP` at 0xB807:
+
+    b809  ld d,0B4h        ; the descriptor page
+    b80b  ld a,(de)        ; the step's byte
+    b810  and 0C0h
+    b812  scf
+    b813  rra              ; 80h | (byte & 0C0h) >> 1
+    b814  ld d,a           ; D is now the channel mask for that step
+
+That is `0xE0` for a step with both bits set. Nothing restores D afterwards, and
+at the end of the tick the delayed repeat effect leaves through `lb759h`
+(`mask |= d; ret`), so the mask learns **the preset's channel mask**, not the
+`0x10` the volume updater started the block with. The port had hardcoded `0x10`
+at that tail, which is why one tick in a hundred thousand differed.
+
+`fStepMask` now carries D through the tick: `0x10` is put there where 0xB60F
+does it, `_Step` replaces it at the 0xB814 point, and the delay effect asks for
+whatever is left, exactly as the register does.
+
+    28 sounds to their end:            13653 / 13653, unchanged
+    all 256 codes to their end:       154912 / 154912   (was 145466 / 145467)
+    the same by write journal:        154912 / 154912
+
+The run also goes deeper than before, because the code that used to stop at the
+difference now plays on to its end. One code still loops past 20000 ticks; it is
+counted and printed rather than hidden.

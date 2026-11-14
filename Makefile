@@ -247,8 +247,8 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	# has to agree exactly.
 	./vm_test build/arkanoid.rom 0 28 0
 	./write_trace build/arkanoid.rom sweep 0 28 0
-	./vm_test build/arkanoid.rom 40 256 0
-	./write_trace build/arkanoid.rom sweep 40 256 0
+	./vm_test build/arkanoid.rom 0 256 0
+	./write_trace build/arkanoid.rom sweep 0 256 0
 
 check-title: rom shot
 	./shot build/arkanoid.rom 300 build/title.png -vram build/title.vram
