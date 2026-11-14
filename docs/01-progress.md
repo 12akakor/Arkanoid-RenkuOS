@@ -1863,3 +1863,17 @@ tick, that is not a state divergence but an extra service call in that frame —
 reference machine runs the routine from its interrupt as well, and the test calls it
 directly. That is a harness question, and the place to look next is how many times
 each side actually services the sound code per frame.
+
+### The harness is even, so the extra pass is the original's
+
+`vm_test` calls `kIsr` (0xB403 in the cartridge header) once per tick and the port
+calls `Tick()` once per tick, so neither side is adding service calls. The extra
+stream 1 pass at tick 37 is therefore in the interrupt handler itself, not an
+artifact of how the test drives it.
+
+That fits the shape of the loop traced just before: the dispatcher calls at 0xB5D9
+(stream 1) and 0xB5F2 (stream 2) are separate, and a sound queued for stream 1
+while stream 2 is being dispatched would only run on the next pass — unless the ISR
+comes back for it. The next measurement is the order of the two loops within one
+`kIsr` call at that tick: whether 0xB5D9 is entered again after 0xB5F2, which the
+`WDISP` trace prints directly.
