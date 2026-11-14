@@ -1536,3 +1536,47 @@ a sequence: the chain count at `0xE5D7` is one low, and the first stream's
 volume-effect state at `0xE5E1` reads 0x81 where the original has 0x00. The tail
 of `ADVANCE` is the place to look; `advance_test` does not cover it because it
 runs idle streams. `make test` runs the six-code sweep, which passes.
+
+### The stream tail, second pass
+
+Two more things were wrong, and both were visible only once the sweep covered
+codes the game does not play.
+
+**The volume has three destinations, chosen by the mask bit.** `_Volume` was
+writing 0xE5CC every time. The handlers' `D` is not just the channel bit:
+
+    0xB690  ld d,0x10 / ld a,e / ld (0xE5CC),a   the first stream's note
+    0xB721  ld d,0x20 / ld a,e / ld (0xE5CD),a   the second stream's mixer
+    0xB74F  ld d,0x40 / ld a,e / ld (0xE5CE),a   the second stream's own note
+
+So every note the second stream played was writing the first stream's volume
+byte, and the first stream's own volume survived instead of being replaced. That
+one change took the sweep from 4160 to 5106 of 5136.
+
+**The comparison has to stay inside the cartridge.** 122 of the 256 codes have
+descriptor bytes that are not sounds at all - the table is shorter than 256
+entries - and their `B3`/`B4` point anywhere, including 0x00C1, which the Z80
+reads out of the BIOS and the port cannot: the port has the cartridge and nothing
+else. `vm_test` now skips those codes and says how many, instead of reporting a
+mismatch the port could never avoid. The single-step trace is what showed it: the
+original's `BC` at `ADVANCE` was 0x06C6 and the C-BIOS really does have 0x56 at
+0x00C2, which is the "wait" byte the original loaded.
+
+### What is left
+
+`./vm_test build/arkanoid.rom 40 256` reports 5106 of 5136 (122 codes skipped).
+The 30 that differ are all in the second stream's command state:
+
+    18 x 0xE5F7   the second stream's volume-effect state: 0x81 where the
+                  original has 0x00
+     8 x 0xE5E1   the first stream's volume-effect state
+     2 x 0xE5D7   the repeat count, one low
+     2 x 0xE5C3   the register mask
+
+The shape of it is that the delayed-repeat status exists **twice** - 0xE5E7 for
+the first stream, which the handlers at 0xB686 use, and 0xE5F7 for the second,
+which 0xB75E and its neighbours use - and the port has one set of delay variables
+shared by both tables. Splitting them is the next move; `WTICK=<n>` in `vm_test`
+prints the original's `PC`, `BC`, `HL`, `A` and the stream bytes at 0xB4BF,
+0xB4C8, 0xB4D2, 0xB4E1, 0xB545 and 0xB54D for that tick, which is how both of
+the above were found.

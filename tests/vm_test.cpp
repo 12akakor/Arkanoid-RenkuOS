@@ -59,7 +59,7 @@ ReadFile(const std::string& path, std::vector<uint8_t>& data)
 
 
 bool
-Call(Machine1& machine, uint16_t address)
+Call(Machine1& machine, uint16_t address, int watch = -1)
 {
 	Z80Regs& r = machine.Cpu().r;
 	r.halted = false;
@@ -79,6 +79,18 @@ Call(Machine1& machine, uint16_t address)
 	r.pc = address;
 
 	for (int step = 0; step < 500000; step++) {
+		if (watch >= 0) {
+			// The places where a sequence ends: the repeat decrement, the
+			// chain decrement, and the two ways into the reload.
+			const uint16_t pc = r.pc;
+			if (pc == 0xb4c8 || pc == 0xb4d2 || pc == 0xb545
+					|| pc == 0xb54d || pc == 0xb4e1 || pc == 0xb4bf) {
+				printf("    t%d pc %04x bc %04x hl %04x a %02x"
+					" s+3 %02x s+4 %02x s+9 %02x\n", watch, pc, r.bc,
+					r.hl, r.a, machine.Ram()[0xE5D6],
+					machine.Ram()[0xE5D7], machine.Ram()[0xE5DC]);
+			}
+		}
 		machine.StepInstruction();
 		if (r.pc == kSentinel)
 			return true;
@@ -124,8 +136,10 @@ main(int argc, char** argv)
 
 	const int ticks = argc > 2 ? atoi(argv[2]) : 20;
 	const int codes = argc > 3 ? atoi(argv[3]) : 256;
+	const int watchTick = getenv("WTICK") != NULL ? atoi(getenv("WTICK")) : -1;
 	int compared = 0;
 	int failed = 0;
+	int skipped = 0;
 
 	for (int code = 0; code < codes; code++) {
 		std::vector<uint8_t> start = base;
@@ -152,13 +166,32 @@ main(int argc, char** argv)
 		for (int reg = 0; reg < 16; reg++)
 			player.SetPsg(reg, startRegs[reg]);
 
+		// Only the codes whose sequence lives in the cartridge are compared.
+		// A descriptor byte that is not really a sound (the table is shorter
+		// than 256 entries) can point anywhere, including into the BIOS, and
+		// there the Z80 and the port are not looking at the same memory: the
+		// port has the cartridge and nothing else. Every code the game really
+		// plays stays inside the cartridge.
+		uint16_t sequence = 0;
+		for (int index = 0; index < 2; index++) {
+			const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
+			if (state.Ram()[stream] == 0)
+				continue;
+			sequence = static_cast<uint16_t>(
+				state.Ram()[stream + 7] | (state.Ram()[stream + 8] << 8));
+		}
+		if (sequence < 0x4000 || sequence >= 0xc000) {
+			skipped++;
+			continue;
+		}
+
 		// Both sides play the same ticks from the same state.
 		memcpy(machine.Ram(), initial.data(), initial.size());
 		for (int reg = 0; reg < 16; reg++)
 			machine.GetPsg().Write(reg, startRegs[reg]);
 
 		for (int tick = 1; tick <= ticks; tick++) {
-			if (!Call(machine, kIsr)) {
+			if (!Call(machine, kIsr, tick == watchTick ? tick : -1)) {
 				printf("  code %d tick %d: the original did not return\n",
 					code, tick);
 				failed++;
@@ -201,63 +234,6 @@ main(int argc, char** argv)
 						printf(" %02x", state.Ram()[0xE5C0 + i]);
 					printf("\n");
 				}
-				if (getenv("WATCH") != NULL) {
-					// Who wrote it in the original? Replay the tick
-					// instruction by instruction and report each change.
-					memcpy(machine.Ram(), initial.data(),
-						initial.size());
-					Z80Regs& r = machine.Cpu().r;
-					if (!Call(machine, kIsr)) {
-						// Call() runs it; so replay by hand instead.
-					}
-					memcpy(machine.Ram(), initial.data(),
-						initial.size());
-					r.halted = false;
-					r.iff1 = false;
-					r.iff2 = false;
-					r.sp = 0xF000;
-					machine.Write(--r.sp, 0xfe);
-					machine.Write(--r.sp, 0xfe);
-					r.pc = kIsr;
-					uint8_t last = machine.Ram()[address];
-					for (int step = 0; step < 200000; step++) {
-						const uint16_t pc = r.pc;
-						machine.StepInstruction();
-						if (machine.Ram()[address] == last)
-							continue;
-						printf("    watch %04x: %02x -> %02x at"
-							" pc %04x bc %04x\n", address, last,
-							machine.Ram()[address], pc, r.bc);
-						last = machine.Ram()[address];
-						if (r.pc == kSentinel)
-							break;
-					}
-				}
-				if (getenv("WATCH") != NULL) {
-					// Which instruction wrote it in the original? Replay
-					// the tick by hand and report every change.
-					memcpy(machine.Ram(), initial.data(),
-						initial.size());
-					Z80Regs& w = machine.Cpu().r;
-					w.halted = false;
-					w.iff1 = false;
-					w.iff2 = false;
-					w.sp = 0xF000;
-					machine.Write(--w.sp, 0xfe);
-					machine.Write(--w.sp, 0xfe);
-					w.pc = kIsr;
-					uint8_t last = machine.Ram()[address];
-					for (int step = 0; step < 200000; step++) {
-						const uint16_t pc = w.pc;
-						machine.StepInstruction();
-						if (machine.Ram()[address] == last)
-							continue;
-						printf("    watch %04x: %02x -> %02x at"
-							" pc %04x bc %04x\n", address, last,
-							machine.Ram()[address], pc, w.bc);
-						last = machine.Ram()[address];
-					}
-				}
 				failed++;
 				differs = true;
 				break;
@@ -267,7 +243,11 @@ main(int argc, char** argv)
 		}
 	}
 
-	printf("%d of %d sound ticks agree with the original\n", compared - failed,
+	printf("%d of %d sound ticks agree with the original", compared - failed,
 		compared);
+	if (skipped > 0)
+		printf(" (%d codes skipped: their sequence is outside the cartridge)",
+			skipped);
+	printf("\n");
 	return failed == 0 ? 0 : 1;
 }

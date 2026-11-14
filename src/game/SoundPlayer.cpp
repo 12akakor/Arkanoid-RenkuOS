@@ -6,6 +6,8 @@
 
 #include "SoundPlayer.h"
 
+#include <stdlib.h>
+
 
 SoundPlayer::SoundPlayer(State& state, PsgSink* sink)
 	:
@@ -516,7 +518,14 @@ SoundPlayer::_Mask(uint8_t d)
 void
 SoundPlayer::_Volume(uint8_t d, uint8_t value)
 {
-	fState.Write(kVolumeControl, value);
+	// The mask bit that says which channel this volume belongs to also says
+	// which of the three bytes holds it: 0x10 is the first stream's block,
+	// 0x20 the second stream's mixer byte, 0x40 the second stream's own
+	// volume. Writing them all to the first byte left the second stream's
+	// notes reading the first stream's volume.
+	const uint16_t address = d == 0x10 ? kVolumeControl
+		: (d == 0x20 ? kVolumeControl2 : kVolume);
+	fState.Write(address, value);
 	_Mask(d);
 }
 

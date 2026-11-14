@@ -66,6 +66,7 @@ public:
 		kAuxPeriodHi		= 0xE5C9,
 		kNoise				= 0xE5CA,
 		kVolumeControl		= 0xE5CC,
+		kVolumeControl2		= 0xE5CD,
 		kEnvelopeShape		= 0xE5CD,
 		kVolume				= 0xE5CE,
 		kComplexA			= 0xE5CF,
