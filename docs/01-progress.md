@@ -1580,3 +1580,30 @@ shared by both tables. Splitting them is the next move; `WTICK=<n>` in `vm_test`
 prints the original's `PC`, `BC`, `HL`, `A` and the stream bytes at 0xB4BF,
 0xB4C8, 0xB4D2, 0xB4E1, 0xB545 and 0xB54D for that tick, which is how both of
 the above were found.
+
+### The delayed-repeat split: not the answer
+
+The hypothesis was wrong, and the address list says so plainly. The two bytes the
+sweep disagrees on are `0xE5E1` and `0xE5F7`, which are **stream1 + 14** and
+**stream2 + 14**: the per-stream volume-effect state was always separate. There
+is no shared delayed-repeat variable to split. The only genuinely shared ones are
+`0xE5E7`/`0xE5E8` (the first stream's) and the second stream's pair, and the
+residue is not in them.
+
+Two things in the primary handler block were wrong and are now right, measured
+against the sweep as neutral:
+
+- the last two entries were swapped: `0xB761` is the effect-preset command
+  (which branches to the mixer when bit 3 of the parameter is set) and `0xB76F`
+  is the mixer itself;
+- the mixer's channel bit and its mask bit are different numbers. `ld de,0x2004`
+  gives `CONFIGURE` `D = 0x20`, but the shared tail reloads `D` with `0x40`,
+  which is what goes into `REG_MASK` and what selects the `0xE5CE` volume byte.
+
+What is left is one behaviour: for some second-stream sequences the port reaches
+`INIT_EFFECT_FROM_PRESET` with a preset in `0xE5FC` and the original does not, so
+the port writes a level to `0xE5F7` (0x81) where the original leaves 0x00. Writing
+the whole command byte instead of its low nibble to `0xE5FC` made the sweep worse
+(42 failures), so the nibble is right; the difference must be in *when* the preset
+is stored - which stream runs the command, and in what order. That is the thread
+to pull next, and `WTICK` plus a watch on `0xE5FC` will show it in one run.
