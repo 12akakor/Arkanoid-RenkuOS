@@ -122,3 +122,47 @@ is the difference between "the game starts" and "the game runs".
   capsule appears. Only the falling-capsule update, which is not ported, clears
   it, so in the port one spawn blocks the next. Unreachable today because nothing
   calls it yet.
+
+### The platform layer, against a core that is now verified
+
+`src/platform/PlatformRenku.cpp` is the only file that knows the Be API, and it
+cannot be compiled in this worktree. Read against the core — whose sound engine
+now agrees with the cartridge for 154912 ticks and whose other routines agree
+over thousands of calls — it is correct as far as it goes, and it stops well
+short of the core's ability. The gaps, in the order they would be noticed:
+
+1. **There is no sound, and no way to ask for one.** `Game` builds its
+   `SoundPlayer` without a sink (`fSoundPlayer(fState)` in `Game::Game`), the
+   constructor takes no argument and there is no accessor. `PsgSink` — the two
+   methods `WritePsg` and `ReadPsg` — is exactly the seam the platform needs,
+   and nothing in `Game.h` exposes it. Until `Game` can be handed a sink, the
+   verified PSG behaviour is discarded on the last step. This half is a core
+   change (one constructor parameter); the other half is a Be audio
+   implementation, which needs the target.
+2. **The paddle never moves.** `Tick(fKeys, 0, 0)` passes both paddle values as
+   zero; they are the values the original reads from the joystick port, and
+   `Input::_ReadPaddle` is written to use them. The platform has to derive them
+   from the pointer (`GetMouse`, or `MouseMoved` for relative motion) and the
+   button.
+3. **The playfield starts empty.** `Game::Game` clears the state and resets the
+   screen; nothing calls `LoadLevel()`, and the platform does not either. That
+   is expected while the level transition is unported, but the window currently
+   has nothing to show.
+4. **Timing.** A `BMessageRunner` at 16667 us has no drift correction: if a tick
+   overruns, the messages queue and the game runs late rather than skipping. The
+   original is a fixed 60 Hz interrupt. The sound driver inherits whatever rate
+   the platform ticks at, so this decides how faithful the tunes are.
+
+Fixed here, because they are defects the file can be corrected for without the
+target: the bitmap is checked with `IsValid()` before `Draw` writes through
+`Bits()`; focus is asked for in `AttachedToWindow` rather than in the
+constructor, the old runner is deleted first (that call can happen twice), and
+losing focus now clears the key matrix so a held arrow cannot keep the paddle
+moving; the stretch uses `B_FILTER_BITMAP_NONE` so the 3x upscale stays square
+instead of being blurred.
+
+Still needs the target, and cannot be settled by reading: the arrow keys are
+compared against `B_UP_ARROW` and friends through `bytes[0]`, which is the usual
+idiom but depends on what the input server actually delivers; that the window
+opens at 768x576 and the picture is not clipped; that a 60 Hz `BMessageRunner`
+holds rate under load; and everything about the audio path once one exists.

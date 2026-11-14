@@ -70,6 +70,7 @@ public:
 	virtual				~GameView();
 
 	virtual	void		AttachedToWindow();
+	virtual	void		MakeFocus(bool focused = true);
 	virtual	void		Draw(BRect updateRect);
 	virtual	void		MessageReceived(BMessage* message);
 	virtual	void		KeyDown(const char* bytes, int32 numBytes);
@@ -95,7 +96,6 @@ GameView::GameView(BRect frame)
 	fRunner(NULL)
 {
 	fKeys.Clear();
-	MakeFocus(true);
 	_MakeBitmap();
 }
 
@@ -112,15 +112,39 @@ GameView::_MakeBitmap()
 {
 	fBitmap = new BBitmap(BRect(0, 0, Game::kWidth - 1, Game::kHeight - 1),
 		B_RGB32);
+	// Bits() is NULL on a bitmap the server refused, and Draw writes straight
+	// through it: a window with no picture is better than a crash.
+	if (!fBitmap->IsValid()) {
+		fprintf(stderr, "cannot allocate the %dx%d game bitmap\n", Game::kWidth,
+			Game::kHeight);
+		delete fBitmap;
+		fBitmap = NULL;
+	}
 }
 
 
 void
 GameView::AttachedToWindow()
 {
+	// Focus belongs to the window, so it is asked for here rather than in the
+	// constructor. AttachedToWindow can be called again after a detach, and the
+	// old runner would go on ticking a view that is no longer on screen.
+	delete fRunner;
 	BMessage tick(kMsgTick);
 	fRunner = new BMessageRunner(BMessenger(this), &tick,
 		kTickMicroseconds);
+	MakeFocus(true);
+}
+
+
+void
+GameView::MakeFocus(bool focused)
+{
+	// Losing focus means the KeyUp for a held key never arrives, and the paddle
+	// would go on moving by itself.
+	if (!focused)
+		fKeys.Clear();
+	BView::MakeFocus(focused);
 }
 
 
@@ -148,8 +172,10 @@ GameView::Draw(BRect updateRect)
 	}
 
 	SetDrawingMode(B_OP_COPY);
+	// Nearest, not bilinear: the picture is 256x192 stretched by a whole number,
+	// and the original's pixels are meant to stay square.
 	DrawBitmap(fBitmap, BRect(0, 0, Game::kWidth - 1, Game::kHeight - 1),
-		Bounds(), B_FILTER_BITMAP_BILINEAR);
+		Bounds(), B_FILTER_BITMAP_NONE);
 }
 
 
