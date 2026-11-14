@@ -1804,3 +1804,21 @@ about: `E0` is index 6 and never touches the preset byte at all.
 With the entries corrected the sweep goes from 5352 of 5356 to 5432 of 5434, and
 what is left is the noise bit (0x08) on two codes at one tick, set by stream 1's
 index 7 at 0xB6C4. The budget in the Makefile is now two.
+
+### The last two ticks are a different sound, not a different bit
+
+Printing the port's own command stream for code 109 at tick 37 shows where it has
+gone:
+
+    port    tick 37 cmd a8 at 0xBA2A, then 06
+    original tick 37 cmd bd at 0x2723, f4, fb, ec, 07
+
+The original is reading a sequence in RAM at 0x2723; the port is still in the
+cartridge at 0xBA2A. So the two streams diverged before this tick — the port is
+playing a different sound, and the missing noise bit is a symptom of that, not a
+mistake in how a command sets the mask.
+
+That is why the budget stays at two rather than going to zero: closing it means
+finding where stream 1's pointer goes its own way (a chain or repeat hand-off is
+the likely place, since the tick counts have matched everywhere else), and the
+mask will follow once the streams agree.
