@@ -1964,3 +1964,21 @@ writing the byte at the reloaded pointer into the stream's tick byte (0xB551), w
 here is 0x00; the port's `_Reload` writes a hard `1`. That is the last unmodelled
 detail, and it fits every observation: same state, same pointer, same table — and a
 one-tick phase difference that appears only where a repeat lands on a zero wait.
+
+### And the tick-byte rule is wrong too
+
+Writing the wait at the reloaded pointer into the tick byte, which is what 0xB551
+appears to do, gives 4890 of 4906 with sixteen differences — the same failure as
+"dispatch in the same tick". Both readings of that path are therefore wrong, and
+both are reverted; the port keeps `ticks = 1`, the model that measures best.
+
+That makes seven explanations for this one tick, each measured and each disproved:
+loop shape, harness, bookkeeping, phase, immediate dispatch, the reload pointer and
+the tick byte. The event trace that produced them is worth keeping in this log, but
+the conclusion is that this difference will not fall to another reading of the
+listing. It needs a real instruction-level simulator diff of that one call, where
+every register is compared after every instruction rather than three events being
+guessed at.
+
+Until then the suite is green on 5432 of 5434 with a budget of two, and the sound
+driver is byte-exact everywhere else.
