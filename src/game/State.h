@@ -16,6 +16,8 @@
 // than copied: a table's address in the disassembly is its address here.
 #include <stdint.h>
 
+#include <functional>
+
 #include "RomImage.h"
 
 
@@ -249,6 +251,11 @@ public:
 
 	uint8_t*			Ram() { return fRam; }
 	const uint8_t*		Ram() const { return fRam; }
+
+	// Every write, in order, for the differential tests: the port's write
+	// sequence can then be compared with the original's instruction by
+	// instruction instead of only at the end of a tick.
+	std::function<void(uint16_t address, uint8_t value)> onWrite;
 
 private:
 	uint8_t				fRam[0x10000];

@@ -29,6 +29,10 @@ all: $(TOOLS)
 shot: tools/shot.cpp $(REF) src/ref/msx1/Machine1.h src/ref/video/Tms9918.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/shot.cpp $(REF)
 
+write_trace: tools/write_trace.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/write_trace.cpp $(REF) \
+		src/game/SoundPlayer.cpp src/game/State.cpp src/game/RomImage.cpp
+
 table_trace: tools/table_trace.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/table_trace.cpp $(REF)
 

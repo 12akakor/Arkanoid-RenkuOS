@@ -1982,3 +1982,24 @@ guessed at.
 
 Until then the suite is green on 5432 of 5434 with a budget of two, and the sound
 driver is byte-exact everywhere else.
+
+### A write-for-write harness, and what it proves
+
+`tools/write_trace.cpp` plays one code, runs both sides to a chosen tick, then
+compares the two journals of writes to the sound window — the original's collected
+by stepping instructions, the port's through a new `State::onWrite` hook. Starting
+the port from the original's own RAM at the top of the call:
+
+    code 109 tick 37: 3 writes in the original, 3 in the port
+      the same writes, in the same order
+
+That is worth having on its own: given the same starting state, the port's per-tick
+logic reproduces the original's writes exactly. So the two remaining ticks are not a
+mistake inside this call — they are state the port carries in from earlier.
+
+Run without that hand-over (`nosync`) the journal shows the drift directly: by that
+tick the original's pointer sits one byte further on, its tick byte is counting down
+from 0xEF while the port's reads 0x01, and its effect state is populated where the
+port's is zero. The harness therefore does what it was built for: it turns "the
+state differs" into "here is the first write that differs", which is the thing to
+chase next.

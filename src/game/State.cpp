@@ -37,4 +37,6 @@ void
 State::Write(uint16_t address, uint8_t value)
 {
 	fRam[address] = value;
+	if (onWrite)
+		onWrite(address, value);
 }
