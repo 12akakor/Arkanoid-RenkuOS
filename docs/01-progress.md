@@ -1698,3 +1698,30 @@ still inside `UPDATE_VOLUME`'s flags byte, not around it.
 The allowance therefore stays at four. Dropping it now would only make `make test`
 fail on the difference that is already documented, which is worse than an honest
 budget: the sweep does fail the build on a fifth mismatch, and I checked that.
+
+### The missing bit has an owner, and it is the preset command
+
+Tracing every write to `0xE5C3` and `0xE5F7` during one frame puts the mask write
+exactly where the doubt was:
+
+```
+cmd@b64a bc bb07 byte e0        ; the preset command, stream 2
+t1 pc b75d: e5c3 20 -> 60       ; mask |= 0x40, from inside that handler
+cmd@b64a bc bb08 byte 07        ; the wait byte
+```
+
+So `0xE0` reaches the shared tail at 0xB753 and the port's version never did. Read
+byte by byte, 0xB761 tests `bit 3,a` on the command, stores the command itself as
+the preset at 0xE5FC, and its `and a` therefore never takes the "clear the status"
+branch; the tail then stores `E` — the low nibble — into 0xE5CE as the volume and
+or-s `0x40` into the mask.
+
+Implementing that is a real step: with it, codes 139 and 197 agree on `0xE5C3`,
+`0xE5CE` and the stream pointers, and the disagreement moves to `0xE5F7` — the
+effect state, which the port ends at 0x85 and the original at 0x00. One byte
+instead of three, on the same four ticks.
+
+The change is not in the tree. It swaps one wrong byte for another rather than
+closing it, and the entry model for `INIT_EFFECT` from this handler is the part
+still unproven — the next step is to trace 0xB7E6 the way 0xB831 was traced here,
+which will say whether the effect state write belongs to that call at all.
