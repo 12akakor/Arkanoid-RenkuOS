@@ -210,7 +210,13 @@ main(int argc, char** argv)
 		ApplyKeys(pattern, keys, machine);
 
 		capture.Arm(machine);
+		// The game starts between frames, not inside the input handler, so
+		// the transition is looked for across the frame as a whole.
+		const uint8_t stateBefore = machine.Ram()[GameRam::kGameState];
 		machine.RunFrame();
+		if (stateBefore == 0
+			&& machine.Ram()[GameRam::kGameState] != 0)
+			starts++;
 		if (!capture.done) {
 			noHandler++;
 			continue;
