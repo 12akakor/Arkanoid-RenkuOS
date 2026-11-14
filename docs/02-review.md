@@ -315,3 +315,53 @@ What the numbers say:
   comes out is aliasing. That is the one fidelity limit this comparison
   found, and it is a property of the sample rate rather than the chip's
   model: the same ticks would need a 224 kHz stream to be reproduced.
+
+## Which codes the game actually plays
+
+The twenty-eight entry table is not twenty-eight sounds the game uses. Every
+writer of a sound code in the cartridge is one of these:
+
+| where | code | named as |
+| --- | --- | --- |
+| 0x40c3 | 248 | SOUND_NOP (`0xF8`), a "no sound" marker |
+| 0x40e6 | 5 | SOUND_PAUSE |
+| 0x41e2 | from the queue | whatever `ADD_SOUND` was given |
+| 0x4c84 | 195 | SOUND_GAME_START_MUSIC |
+| 0x4e93 | 196 | SOUND_LEVEL_START_MUSIC |
+| 0x4ea5 | 200 | SOUND_DOH_LEVEL_STARTS |
+| 0x4ecd | 0 | SOUND_NOP_0, clears the number |
+| 0x7bcf | 199 | SOUND_GAME_ENDING |
+| 0x7c26 | 198 | SOUND_GAME_OVER |
+
+and the twenty `call ADD_SOUND` sites, every one of which loads its argument
+from a constant first:
+
+| code | named as | queued at |
+| --- | --- | --- |
+| 1 | SOUND_BALL_BOUNCES_ON_VAUS | 0x9939, 0x9be3 |
+| 2 | SOUND_BRICK_DESTROYED | 0xab00 |
+| 3 | SOUND_HARD_BRICK_HIT | 0xab31 |
+| 4 | SOUND_GLUED_BALL_CATCHED | 0x9c00 |
+| 6 | SOUND_VAUS_FIRING_X3 | 0x709b |
+| 7 | SOUND_VAUS_DESTROYED | 0x7aac, 0x9b55 |
+| 8 | SOUND_DOH_HIT | 0x96e4 |
+| 9 | SOUND_DOH_DEFEATED | 0x9704 |
+| 192 | SOUND_VAUS_INCREASES_SIZE_H | 0xb235 |
+| 193 | SOUND_VAUS_GOES_THROUGH_PORTAL_H | 0x699b, 0x6a07 |
+| 194 | SOUND_ALIEN_DESTROYED | 0x7926, 0x7988, 0x79bd, 0x79da, 0x79f7 |
+| 197 | SOUND_LIFE | 0x533d, 0xb2a1 |
+
+That is the whole set. Codes 14 to 27 of the table - the 8.6 second, 36 second
+and 126 second pieces among them - are written by nothing: no immediate, no
+table, and the queue only ever receives the constants above. They are table
+entries with no caller, most likely content from a version of the sound driver
+with more effects than this cartridge queued. Codes 10 to 13 are in the same
+position: they exist, and the game queues their `H` counterparts 192 and 193
+instead.
+
+So codes 24 and 25 are not played by any event in the game, and the question of
+looping does not arise in play - but it can still be answered from the driver:
+given the code directly, each plays once. Both streams go inactive when the
+sequence ends, after 2181 ticks (36.35 s) for code 24 and 7541 ticks
+(125.69 s) for code 25, which is the whole sequence played through. Nothing in
+them jumps back, so neither is a loop the game forgot to stop.
