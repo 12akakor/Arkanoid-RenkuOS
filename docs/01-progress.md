@@ -2040,3 +2040,40 @@ the sweep down to 4890/4906 with 16 mismatches, the same number an earlier
 turn's "immediate reload dispatch" produced. So that reading is wrong, or at
 least incomplete, and the code is back to 5432/5434. Recorded here so it is not
 tried again.
+
+### The last two ticks were never sounds
+
+A register-level trace of one call (`./write_trace build/arkanoid.rom trace 109 37`,
+one line per instruction with the registers and every change to the sound
+window) ends the argument. At `0xB4BF` the CPU loads A from `0x2722` and gets
+**0xEF**:
+
+    b4bb   ...  0142 2722   0300 e5d3    e5dc=00
+    b4bf   ...  ef42 2722   0300 e5d3
+    b4c1   ...  efa9 2722   0300 e5d3
+    b5d6   ...  efa9 2722   0300 e5d3    e5dc=ef
+
+`0x2722` is in slot 0, so the Z80 reads the **BIOS** there. `Machine1::Ram()`
+is the 64 KB of slot 3 only, and it holds `0x00` at that address — which is why
+the port, whose only memory is the cartridge, saw a zero and ran the ladder.
+The two never disagreed about the code; they were reading different machines.
+
+Why a code lands there at all: `TBL_SOUND_PARAMS` (0xB406) is **28 bytes long**,
+one per sound, so codes 0-27 are the sounds and code 109 reads at `0xB473` —
+inside the descriptor data, not the table. Its "descriptor" is bytes of other
+descriptors, which start inside the cartridge and wander out of it many ticks
+later. So 109 and 119 are not sounds; they are garbage that happened to pass
+the domain check, which only looked at the first pointer.
+
+The check now runs at the top of every tick: if either active stream's pointer
+has left `0x4000`-`0xBFFF`, the code is skipped and counted, because there the
+original is reading memory the port deliberately does not model. The budget is
+gone from the Makefile, and the numbers are exact:
+
+    40 ticks, codes 0..27 (the whole table):  1120 of 1120 agree, none skipped
+    40 ticks, all 256 codes:                  5060 of 5060 agree, 134 skipped
+    the same sweep by write journal:          5060 of 5060, 122 in domain
+
+Fourteen codes leave the cartridge partway through, not two: the two that
+failed were simply the ones that left early enough to be caught. Nothing in
+`SoundPlayer` had to change for this, and nothing did.

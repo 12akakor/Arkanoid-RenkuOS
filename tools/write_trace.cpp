@@ -199,6 +199,90 @@ ShowDifference(const std::vector<Write>& original,
 }
 
 
+// One call, one instruction at a time: the registers that decide what it does
+// next, and every change to the sound window as it happens. The journal says
+// what changed; this says which instruction changed it and on what condition.
+void
+TraceCall(Machine1& machine, int code, int tick)
+{
+	machine.Ram()[kInhibit] = 0;
+	machine.Ram()[kCanAdd] = 1;
+	machine.Ram()[kSoundNumber] = static_cast<uint8_t>(code);
+	if (!Run(machine, kPlay)) {
+		printf("PLAY_SOUND did not return\n");
+		return;
+	}
+
+	for (int call = 1; call < tick; call++) {
+		if (!Run(machine, kIsr)) {
+			printf("call %d did not return\n", call);
+			return;
+		}
+	}
+
+	for (int index = 0; index < 2; index++) {
+		const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
+		const uint16_t pointer = static_cast<uint16_t>(
+			machine.Ram()[stream + 7] | (machine.Ram()[stream + 8] << 8));
+		printf("s%d before: active %02x repeat %02x chain %02x ticks %02x"
+			" pointer %04x -> %02x\n", index + 1,
+			machine.Ram()[stream], machine.Ram()[stream + 4],
+			machine.Ram()[stream + 3], machine.Ram()[stream + 9], pointer,
+			machine.Ram()[pointer]);
+	}
+
+	Z80Regs& r = machine.Cpu().r;
+	r.halted = false;
+	machine.Cpu().eiPending = false;
+	r.iff1 = false;
+	r.iff2 = false;
+	r.af = 0;
+	r.bc = 0;
+	r.de = 0;
+	r.hl = 0;
+	r.ix = 0;
+	r.iy = 0;
+	r.sp = 0xF000;
+	machine.Write(--r.sp, static_cast<uint8_t>(kSentinel >> 8));
+	machine.Write(--r.sp, static_cast<uint8_t>(kSentinel & 0xff));
+	r.pc = kIsr;
+
+	std::vector<uint8_t> before(kSoundTo - kSoundFrom);
+	memcpy(before.data(), machine.Ram() + kSoundFrom, before.size());
+
+	printf("%-6s %-12s %-12s %-12s %s\n", "pc", "bytes", "af bc", "de hl",
+		"changed");
+	for (int step = 0; step < 4000; step++) {
+		const uint16_t pc = r.pc;
+		char bytes[16] = "";
+		for (int n = 0; n < 4; n++)
+			snprintf(bytes + n * 3, 4, "%02x ", machine.Ram()[pc + n]);
+
+		machine.StepInstruction();
+
+		char changed[128] = "";
+		int at = 0;
+		for (uint16_t address = kSoundFrom; address < kSoundTo; address++) {
+			const uint8_t value = machine.Ram()[address];
+			if (value == before[address - kSoundFrom])
+				continue;
+			before[address - kSoundFrom] = value;
+			if (at > 96)
+				continue;
+			at += snprintf(changed + at, sizeof(changed) - at, " %04x=%02x",
+				address, value);
+		}
+
+		printf("%04x   %-12s %02x%02x %02x%02x   %02x%02x %02x%02x   %s\n",
+			pc, bytes, r.af >> 8, r.af & 0xff, r.bc >> 8, r.bc & 0xff,
+			r.de >> 8, r.de & 0xff, r.hl >> 8, r.hl & 0xff, changed);
+
+		if (r.pc == kSentinel)
+			break;
+	}
+}
+
+
 // Every code, every tick, one write journal at a time. The domain is the same
 // as vm_test's: a code whose sequence points outside the cartridge is skipped,
 // because there the Z80 reads memory the port does not have, and comparing it
@@ -261,6 +345,26 @@ Sweep(Machine1& machine, const std::vector<uint8_t>& base, int ticks, int codes,
 			machine.GetPsg().Write(reg, startRegs[reg]);
 
 		for (int tick = 1; tick <= ticks; tick++) {
+			// A pointer that has left the cartridge reads the BIOS in slot 0
+			// or a slot with nothing in it, which the port does not have; the
+			// code is out of domain from this tick on.
+			bool left = false;
+			for (int index = 0; index < 2; index++) {
+				const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
+				if (machine.Ram()[stream] == 0)
+					continue;
+				const uint16_t pointer = static_cast<uint16_t>(
+					machine.Ram()[stream + 7]
+					| (machine.Ram()[stream + 8] << 8));
+				if (pointer < 0x4000 || pointer >= 0xc000)
+					left = true;
+			}
+			if (left) {
+				skipped++;
+				inDomain--;
+				break;
+			}
+
 			// With sync the port starts every tick from the original's own
 			// memory, so a difference here is a mistake inside this call and
 			// not state carried in from an earlier one.
@@ -357,6 +461,16 @@ main(int argc, char** argv)
 		const int allow = argc > 5 ? atoi(argv[5]) : 0;
 		const bool sync = argc > 6 && strcmp(argv[6], "sync") == 0;
 		return Sweep(machine, base, ticks, codes, allow, sync);
+	}
+
+	if (strcmp(argv[2], "trace") == 0) {
+		if (argc < 5) {
+			fprintf(stderr, "usage: write_trace <rom> trace <code> <tick>\n");
+			return 1;
+		}
+		memcpy(machine.Ram(), base.data(), base.size());
+		TraceCall(machine, atoi(argv[3]), atoi(argv[4]));
+		return 0;
 	}
 
 	if (argc < 4) {

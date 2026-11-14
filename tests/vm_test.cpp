@@ -252,6 +252,28 @@ main(int argc, char** argv)
 			machine.GetPsg().Write(reg, startRegs[reg]);
 
 		for (int tick = 1; tick <= ticks; tick++) {
+			// A code whose stream pointer has left the cartridge is not a
+			// sound the port can be compared against: the Z80 is reading the
+			// BIOS in slot 0 or a slot with nothing in it, and the port has
+			// neither. The check before the tick loop cannot see this, because
+			// a descriptor that is not really a sound can start inside the
+			// cartridge and wander out of it several ticks later.
+			bool left = false;
+			for (int index = 0; index < 2; index++) {
+				const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
+				if (machine.Ram()[stream] == 0)
+					continue;
+				const uint16_t pointer = static_cast<uint16_t>(
+					machine.Ram()[stream + 7]
+					| (machine.Ram()[stream + 8] << 8));
+				if (pointer < 0x4000 || pointer >= 0xc000)
+					left = true;
+			}
+			if (left) {
+				skipped++;
+				break;
+			}
+
 			if (!Call(machine, kIsr, tick == watchTick ? tick : -1)) {
 				printf("  code %d tick %d: the original did not return\n",
 					code, tick);
