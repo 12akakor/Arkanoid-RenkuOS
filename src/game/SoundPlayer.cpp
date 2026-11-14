@@ -259,14 +259,18 @@ SoundPlayer::Tick()
 		if (!Advance(stream, pointer))
 			continue;
 
+		// Advance may have reloaded the stream onto a different sequence, so
+		// the pointer is read again rather than reused.
+		const uint16_t current = Read16(pointerAddress);
+
 		// The byte the stream stopped on is the wait for the next tick.
-		fState.Write(stream + kTicks, fState.Read(pointer));
+		fState.Write(stream + kTicks, fState.Read(current));
 
 		// The two dispatchers load each other's table: DISPATCH_PRIMARY
 		// (0xB63E) uses TBL_SECONDARY_SOUND_CMD_ENTRY_OFFSETS and
 		// DISPATCH_SECONDARY (0xB649) uses the primary one. The first stream
 		// therefore runs the commands the tables call secondary.
-		Write16(pointerAddress, Dispatch(stream, pointer, index != 0));
+		Write16(pointerAddress, Dispatch(stream, current, index != 0));
 	}
 
 	uint16_t accumulator = Read16(kRegsBuffer);
@@ -483,6 +487,7 @@ SoundPlayer::Advance(uint16_t stream, uint16_t pointer)
 		fState.Write(stream + kDescriptorLow, next & 0xff);
 		fState.Write(stream + kDescriptorHigh, next >> 8);
 		_Reload(stream, next);
+		// The chain hand-off waits: 0xB4DF lands past the dispatch.
 		return false;
 	}
 

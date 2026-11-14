@@ -34,6 +34,41 @@ const uint16_t kInhibit = 0xE5C1;
 const uint16_t kCanAdd = 0xE5C2;
 const uint16_t kSoundNumber = 0xE5C0;
 
+const char*
+Name(uint16_t address)
+{
+	switch (address) {
+		case 0xE5C1: return "inhibit";
+		case 0xE5C3: return "reg mask";
+		case 0xE5C4: return "period 1";
+		case 0xE5C6: return "period 2";
+		case 0xE5CC: return "volume 1";
+		case 0xE5CE: return "volume 2";
+		case 0xE5D3: return "s1 active";
+		case 0xE5D5: return "s1 follow";
+		case 0xE5D6: return "s1 chain";
+		case 0xE5D7: return "s1 repeat";
+		case 0xE5D8: return "s1 descriptor";
+		case 0xE5D9: return "s1 descriptor+1";
+		case 0xE5DA: return "s1 pointer";
+		case 0xE5DB: return "s1 pointer+1";
+		case 0xE5DC: return "s1 ticks";
+		case 0xE5DD: return "s1 effect";
+		case 0xE5E1: return "s1 effect state";
+		case 0xE5E6: return "s1 preset";
+		case 0xE5E9: return "s2 active";
+		case 0xE5EB: return "s2 follow";
+		case 0xE5EC: return "s2 chain";
+		case 0xE5ED: return "s2 repeat";
+		case 0xE5F0: return "s2 pointer";
+		case 0xE5F1: return "s2 pointer+1";
+		case 0xE5F2: return "s2 ticks";
+		case 0xE5F7: return "s2 effect state";
+		case 0xE5FC: return "s2 preset";
+	}
+	return NULL;
+}
+
 const uint16_t kComparedFrom = 0xE000;
 const uint16_t kComparedTo = 0xE600;
 
@@ -87,6 +122,11 @@ Call(Machine1& machine, uint16_t address, int watch = -1)
 					&& (pc == 0xb640 || pc == 0xb64a)) {
 				printf("    cmd@%04x bc %04x byte %02x\n", pc, r.bc,
 					machine.Read(r.bc));
+			}
+			if (getenv("WBR") != NULL && atoi(getenv("WBR")) == watch
+					&& (pc == 0xb4c3 || pc == 0xb4c9 || pc == 0xb4cb
+						|| pc == 0xb4d1 || pc == 0xb4e1 || pc == 0xb4e5)) {
+				printf("    br %04x hl %04x a %02x\n", pc, r.hl, r.a);
 			}
 			static const uint16_t kWatch[4] = { 0xE5FC, 0xE5F7, 0xE5E1, 0xE5C3 };
 			uint8_t before[4];
@@ -237,30 +277,26 @@ main(int argc, char** argv)
 			if (differs)
 				break;
 
+			int shown = 0;
 			for (uint16_t address = kComparedFrom; address < kComparedTo;
 					address++) {
 				if (machine.Ram()[address] == state.Ram()[address])
 					continue;
-				if (failed < 12)
-					printf("  code %d tick %d: 0x%04x original %02x,"
-						" port %02x\n", code, tick, address,
-						machine.Ram()[address], state.Ram()[address]);
-				if (failed < 2) {
-					printf("    original:");
-					for (int i = 0; i < 0x26; i++)
-						printf(" %02x",
-							machine.Ram()[0xE5C0 + i]);
-					printf("\n    port    :");
-					for (int i = 0; i < 0x26; i++)
-						printf(" %02x", state.Ram()[0xE5C0 + i]);
-					printf("\n");
-				}
-				failed++;
 				differs = true;
+				if (shown++ >= 8)
+					continue;
+				const char* name = Name(address);
+				printf("  code %d tick %d: 0x%04x %s original %02x,"
+					" port %02x\n", code, tick, address,
+					name != NULL ? name : "",
+					machine.Ram()[address], state.Ram()[address]);
+			}
+			if (differs) {
+				if (shown > 8)
+					printf("  ... %d more bytes differ\n", shown - 8);
+				failed++;
 				break;
 			}
-			if (differs)
-				break;
 		}
 	}
 
