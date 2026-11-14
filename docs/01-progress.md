@@ -1839,3 +1839,27 @@ have set in that tick is missing.
 That is the last difference, and it is a loop shape rather than a value: the tick
 needs to keep dispatching a stream while the same checks that `0xB4B5` makes say
 there is something to do.
+
+### The loop hypothesis was wrong, and the trace says why
+
+Counting dispatcher entries at the failing tick rules out the idea that a stream is
+dispatched more than once per tick:
+
+    disp b63f bc 2723   ; entered
+    disp b5dc bc 2723   ; returned to the loop
+    disp b5d9 bc 2723   ; loop calls it again
+    disp b63f bc 2724   ; next command
+
+Each call handles exactly one command and returns; the outer loop at 0xB5DC simply
+drives the sequence, and the terminator jumps past it. The port's `Dispatch`, which
+loops internally until the wait byte, is the same thing with a different shape — so
+there was nothing to restructure, and the previous entry in this log claiming a
+once-per-tick flattening is wrong.
+
+What the same trace does show is that at tick 37 the original's stream 1 runs `bd`
+from 0x2723 while the port's stream 1 runs nothing at all: its tick counter still
+had a wait left. Since every byte of sound RAM agrees at the end of each preceding
+tick, that is not a state divergence but an extra service call in that frame — the
+reference machine runs the routine from its interrupt as well, and the test calls it
+directly. That is a harness question, and the place to look next is how many times
+each side actually services the sound code per frame.
