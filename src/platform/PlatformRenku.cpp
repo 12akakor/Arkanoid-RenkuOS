@@ -64,6 +64,32 @@ const KeyBinding kBindings[] = {
 }
 
 
+// Where the driver's PSG writes arrive. The register image is kept here so the
+// node that turns it into samples has something to read and so the writes can
+// be seen while the audio path is still being built; synthesising from it is
+// the next step and needs the target.
+class PsgOutput : public SoundPlayer::PsgSink {
+public:
+						PsgOutput()
+						{
+							memset(fRegisters, 0, sizeof(fRegisters));
+						}
+
+	virtual	void		WritePsg(uint8_t reg, uint8_t value)
+						{
+							fRegisters[reg & 15] = value;
+						}
+
+	virtual	uint8_t		ReadPsg(uint8_t reg)
+						{
+							return fRegisters[reg & 15];
+						}
+
+private:
+			uint8_t		fRegisters[16];
+};
+
+
 class GameView : public BView {
 public:
 						GameView(BRect frame);
@@ -81,6 +107,7 @@ private:
 	void				_SetKey(uint32 code, bool down);
 	void				_Redraw();
 
+			PsgOutput	fPsg;
 			Game		fGame;
 			BBitmap*	fBitmap;
 			KeyMatrix	fKeys;
@@ -91,7 +118,8 @@ private:
 GameView::GameView(BRect frame)
 	:
 	BView(frame, "game", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS
-		| B_PULSE_NEEDED),
+								| B_PULSE_NEEDED),
+	fGame(&fPsg),
 	fBitmap(NULL),
 	fRunner(NULL)
 {

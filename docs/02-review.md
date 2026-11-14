@@ -166,3 +166,17 @@ compared against `B_UP_ARROW` and friends through `bytes[0]`, which is the usual
 idiom but depends on what the input server actually delivers; that the window
 opens at 768x576 and the picture is not clipped; that a 60 Hz `BMessageRunner`
 holds rate under load; and everything about the audio path once one exists.
+
+### The audio seam, opened
+
+`Game` now takes a `SoundPlayer::PsgSink*` (default NULL, which is what the tests
+use). The platform passes its own `PsgOutput`, which keeps the sixteen register
+values the driver writes and answers the register-7 read the driver makes when
+it takes the mixer over. So the writes now arrive somewhere outside the core
+instead of being dropped: what is still missing is synthesis — turning that
+register image into samples at the PSG's clock — and that is the part that needs
+the target.
+
+`Game.cpp` is not linked into anything on this side (the platform build happens
+on the target), so `make test` now syntax-checks it: the constructor change is
+compiled on every run rather than there being nothing to notice if it rots.

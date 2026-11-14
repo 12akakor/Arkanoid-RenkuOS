@@ -49,7 +49,11 @@ public:
 		kHiddenY = 209			// where a sprite is put to hide it
 	};
 
-						Game();
+	// The platform's sound output, if it has one. Every PSG write the driver
+	// makes goes through this, and the driver reads register 7 back through
+	// it when it takes the mixer over; NULL leaves it with its own register
+	// image, which is what the tests use.
+						explicit Game(SoundPlayer::PsgSink* sink = NULL);
 
 	// One frame, sixty times a second.
 	void				Tick(const KeyMatrix& keys, uint16_t paddleCount,

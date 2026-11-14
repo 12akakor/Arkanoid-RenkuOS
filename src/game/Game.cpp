@@ -7,7 +7,7 @@
 #include "Game.h"
 
 
-Game::Game()
+Game::Game(SoundPlayer::PsgSink* sink)
 	:
 	fState(),
 	fScreen(),
@@ -17,7 +17,7 @@ Game::Game()
 	fHud(fState, fScreen),
 	fLevels(fState, fScreen),
 	fEffects(fState, fScreen),
-	fSoundPlayer(fState)
+	fSoundPlayer(fState, sink)
 {
 	fState.Clear();
 	fScreen.Reset();

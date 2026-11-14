@@ -218,6 +218,10 @@ build/arkanoid.rom:
 rom: build/arkanoid.rom
 
 test: $(TESTS) $(TOOLS) build/arkanoid.rom
+# Game.cpp ties the core together and is only compiled for real on the
+# target, where the platform layer lives. Syntax-checking it here means a
+# change to its interface cannot rot unnoticed.
+	$(CXX) $(CXXFLAGS) -Isrc -fsyntax-only src/game/Game.cpp
 	./rom_test build/arkanoid.rom
 	./render_test build/arkanoid.rom 300
 	./routine_diff build/arkanoid.rom 1000
