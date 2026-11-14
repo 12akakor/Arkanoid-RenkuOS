@@ -398,3 +398,31 @@ code the original could not" is enforced where codes are produced (the
 constants) and where they would reach the chip (the counters), but not yet
 observed over a whole session of play. When the drain is ported, the counters
 are already there to assert on.
+
+## The queue drain, so queued sounds reach the player
+
+GO_ON_AFTER_TRANSITION (0x41DA) is what turned the queue into sound: the front
+of `SOUNDS_BUFFER` is read, a zero means nothing is waiting, otherwise it
+becomes `SOUND_NUMBER`, `PLAY_SOUND` is called, the front is zeroed, the seven
+bytes behind it shift down one slot, the last slot is cleared and
+`SOUNDS_COUNT` comes down by one. Every one of the three transitions jumps here
+with its own work done, so it runs once a frame, after that work.
+
+It is ported in two halves: `Sound::Pop` does the queue, `Game::DrainSounds`
+turns the code into a sound, and `Game::Tick` calls it exactly where the
+original jumps to it. The original plays before it shifts; this hands the code
+back before shifting, which leaves the same memory behind because `PLAY_SOUND`
+reads the descriptor table in the ROM and the stream state but never the queue.
+The differential test is what says so rather than the reasoning:
+`game_session_test` runs the original from 0x41DA until it reaches the rest of
+the frame at 0x40D7 and compares the game variables over two hundred queue
+states - empty, one deep, full, with `CAN_ADD_SOUND` either way and the stream
+state randomised. All two hundred agree, and 142 of them had a sound to play.
+
+The second half of the test is the session the drain exists for: two thousand
+frames of the game with its own brick-hit code queueing through ADD_SOUND. Five
+hundred codes were queued and five hundred played, the queue never went past
+seven, it was empty at the end, and nothing outside the domain reached the
+player or ever sat in `SOUND_NUMBER`. That closes the gap the previous section
+left: the port's game now calls `PLAY_SOUND`, and the counters are asserted over
+a real session rather than only at the choke points.

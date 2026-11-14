@@ -61,6 +61,7 @@ void
 SoundPlayer::Play()
 {
 	const uint8_t code = fState.Read(kSoundNumber);
+	fPlays++;
 
 	// The twenty codes in SoundCodes.h are the whole of what the cartridge
 	// puts here. Anything else is counted: the port must not invent a sound,

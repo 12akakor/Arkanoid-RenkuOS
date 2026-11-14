@@ -101,6 +101,10 @@ public:
 	// than refused - the original's behaviour is the port's job - and the
 	// tests read the count: it has to stay at nothing.
 			int			OutsiderCodes() const { return fOutsiderCodes; }
+	// How many codes have been handed over in all, which is what a session of
+	// the game is checked against: a session that never plays anything would
+	// pass every other check about what it plays.
+			int			Plays() const { return fPlays; }
 			uint8_t		LastOutsider() const { return fLastOutsider; }
 
 	// The part of SOUND_ISR_UPDATE (0xB594) that puts the register image on
@@ -165,6 +169,7 @@ private:
 			PsgSink*	fSink;
 			uint8_t		fRegs[16];
 			int			fOutsiderCodes = 0;
+			int			fPlays = 0;
 			uint8_t		fLastOutsider = 0;
 };
 

@@ -17,6 +17,7 @@ Game::Game(SoundPlayer::PsgSink* sink)
 	fHud(fState, fScreen),
 	fLevels(fState, fScreen),
 	fEffects(fState, fScreen),
+	fSound(fState),
 	fSoundPlayer(fState, sink)
 {
 	fState.Clear();
@@ -48,6 +49,22 @@ Game::Tick(const KeyMatrix& keys, uint16_t paddleCount, uint8_t paddleStatus)
 		default:
 			break;
 	}
+
+	// Every transition in the original jumps to GO_ON_AFTER_TRANSITION with
+	// its work done, and that is where a queued sound becomes a sound.
+	DrainSounds();
+}
+
+
+void
+Game::DrainSounds()
+{
+	const uint8_t code = fSound.Pop();
+	if (code == 0)
+		return;
+
+	fState.Write(GameRam::kSoundNumber, code);
+	fSoundPlayer.Play();
 }
 
 

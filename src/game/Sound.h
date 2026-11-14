@@ -30,6 +30,11 @@ public:
 		// ADD_SOUND (0x5BEF).
 	void				Add(uint8_t sound);
 
+	// The queue half of GO_ON_AFTER_TRANSITION (0x41DA): the front of the
+	// queue, if there is one, is returned after the rest has moved down a
+	// slot and the count has come down. Zero means there was nothing.
+	uint8_t				Pop();
+
 	// The twelve codes in IsQueuedSoundCode are the only ones the cartridge
 	// ever queues. Add still does what the original does with anything else,
 	// because matching it is the job, but it counts them: nothing in this

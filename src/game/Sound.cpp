@@ -39,3 +39,34 @@ Sound::Add(uint8_t sound)
 	const uint8_t next = static_cast<uint8_t>(count + 1);
 	fState.Write(GameRam::kSoundsCount, next == 8 ? 7 : next);
 }
+
+
+// The queue half of GO_ON_AFTER_TRANSITION (0x41DA). The front is read; the
+// routine's caller turns that into SOUND_NUMBER and calls PLAY_SOUND, then the
+// front is zeroed, the seven bytes behind it shift down one slot, the last slot
+// is cleared, and the count comes down by one - the Z80's dec wraps, so this
+// does too rather than clamping.
+//
+// The original plays before it shifts, and this hands the code back before
+// shifting; PLAY_SOUND reads the descriptor table in the ROM and the stream
+// state, never the queue, so the order the two halves are done in leaves the
+// same memory behind - which the differential test checks over two hundred
+// queue states.
+uint8_t
+Sound::Pop()
+{
+	const uint8_t code = fState.Read(GameRam::kSoundsBuffer);
+	if (code == 0)
+		return 0;
+
+	fState.Write(GameRam::kSoundsBuffer, 0);
+	for (int slot = 1; slot < 8; slot++) {
+		fState.Write(static_cast<uint16_t>(GameRam::kSoundsBuffer + slot - 1),
+			fState.Read(static_cast<uint16_t>(GameRam::kSoundsBuffer + slot)));
+	}
+	fState.Write(static_cast<uint16_t>(GameRam::kSoundsBuffer + 7), 0);
+	fState.Write(GameRam::kSoundsCount,
+		static_cast<uint8_t>(fState.Read(GameRam::kSoundsCount) - 1));
+
+	return code;
+}

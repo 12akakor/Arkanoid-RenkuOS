@@ -18,7 +18,7 @@ TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
 	levels_test lives_test soundplayer_test sound_codes_test isr_test \
-	isr_trace isr_multi advance_test vm_test
+	isr_trace isr_multi advance_test vm_test game_session_test
 
 # Every binary depends on every game header: a changed constant in State.h has
 # to rebuild the tests, or a stale binary silently passes.
@@ -214,6 +214,11 @@ capsule_test: tests/capsule_test.cpp src/game/Capsules.cpp \
 		src/game/Capsules.cpp src/game/Random.cpp src/game/Screen.cpp \
 		src/game/State.cpp src/game/RomImage.cpp $(REF)
 
+game_session_test: tests/game_session_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/Vaus.cpp \
+		$(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/game_session_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/Vaus.cpp \
+		$(REF)
+
 sound_codes_test: tests/sound_codes_test.cpp src/game/Sound.cpp \
 		src/game/SoundPlayer.cpp src/game/State.cpp src/game/RomImage.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/sound_codes_test.cpp \
@@ -254,6 +259,7 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./brickeffect_test build/arkanoid.rom 300
 	./sound_test build/arkanoid.rom 400
 	./sound_codes_test build/arkanoid.rom
+	./game_session_test build/arkanoid.rom
 	./capsule_test build/arkanoid.rom 200
 	./brickhit_test build/arkanoid.rom 400
 	./brickmain_test build/arkanoid.rom 300

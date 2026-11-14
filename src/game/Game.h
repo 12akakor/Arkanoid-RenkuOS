@@ -35,6 +35,7 @@
 #include "Input.h"
 #include "Renderer.h"
 #include "Screen.h"
+#include "Sound.h"
 #include "State.h"
 #include "Vaus.h"
 
@@ -55,6 +56,11 @@ public:
 	// image, which is what the tests use.
 						explicit Game(SoundPlayer::PsgSink* sink = NULL);
 
+	// GO_ON_AFTER_TRANSITION (0x41DA): a queued code becomes SOUND_NUMBER and
+	// is played. The original reaches it from each of the three transitions,
+	// so it runs every frame, after the transition's own work.
+	void				DrainSounds();
+
 	// One frame, sixty times a second.
 	void				Tick(const KeyMatrix& keys, uint16_t paddleCount,
 							uint8_t paddleStatus);
@@ -70,6 +76,7 @@ public:
 
 			Screen&		GetScreen() { return fScreen; }
 			State&		GetState() { return fState; }
+			SoundPlayer&	GetSoundPlayer() { return fSoundPlayer; }
 
 private:
 	void				_UploadSprites();
@@ -83,6 +90,7 @@ private:
 			Hud			fHud;
 			Levels		fLevels;
 			BrickEffects	fEffects;
+			Sound			fSound;
 			SoundPlayer		fSoundPlayer;
 			uint8_t		fFrame[kWidth * kHeight];
 };
