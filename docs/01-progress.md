@@ -1482,3 +1482,26 @@ Two discrepancies remain and both are in the same place - the voice control
 register comes out 0xFE where the original has 0xBE, and the volume control 0x00
 where the original has 0x0F - so they are almost certainly one mistake in
 `_MixerMask` or in the volume the note command takes from its preset.
+
+### Why a command cannot be tested on its own
+
+`tests/command_test.cpp` tries to compare one command at a time: a fake sequence
+in RAM, the original's dispatcher called with BC on the command byte. It cannot
+work, and single-stepping shows why:
+
+    pc b63e bc f0ff          DISPATCH_PRIMARY
+    pc b63f bc f100          inc bc
+    pc b640 bc f100 a cd     ld a,(bc)      the command byte
+    pc b647 bc f100 hl b666  the secondary table, as documented
+    pc b661 bc f100 hl b6b9  jp (hl)
+    pc b6b9                  the handler
+    ... and its `ret` goes straight back to the caller.
+
+The handler returns to whoever called the dispatcher, and the dispatcher's
+*continue* is the ISR's own `jr` loop at 0xB5D9 - it is not part of the
+dispatcher at all. So a call to the dispatcher runs one command and returns, and
+`SOUND_PTR_1` is never written.
+
+The command has to be tested where it really runs, which is what `vm_test` does
+by calling the ISR. `command_test` stays in the tree as the record of that, not
+as a passing check.
