@@ -2132,3 +2132,32 @@ whatever is left, exactly as the register does.
 The run also goes deeper than before, because the code that used to stop at the
 difference now plays on to its end. One code still loops past 20000 ticks; it is
 counted and printed rather than hidden.
+
+### Looking for other registers that outlive their owner
+
+The D bug raises the question of whether anything else reads a register it never
+wrote. Two checks, both mechanical.
+
+**Entry state.** The ISR does not save what the interrupted code left in the
+registers, so if any routine read one of those, the sound would depend on game
+code the port has no model of. `write_trace` takes `REGS=xx` and seeds AF, BC,
+DE, HL, IX and IY with a chosen byte before every ISR call it makes:
+
+    REGS=00  13653 of 13653 agree
+    REGS=ff  13653 of 13653 agree
+    REGS=55  13653 of 13653 agree
+
+The same journals in all three, so nothing in these paths reads an entry
+register. `make test` now runs the 0xff case every time, so a future change that
+introduces such a dependence fails the suite.
+
+**Inside one tick.** Reading the register flow from 0xB594 to 0xB63D, the only
+two values a routine uses without writing them first are D at `lb759h`
+(`mask |= d`) and C at 0xB61A and 0xB639 (`ld a,c`, the volume the effect
+returns). The first is now `fStepMask`; the second the port already models by
+returning the volume. Every other `ld d` in the body sets its own value —
+`ld d,3` at 0xB5A0, `ld d,1` at 0xB5FC, `ld d,16` at 0xB60F, `ld d,2` at 0xB621,
+`ld d,64` at 0xB631, and the `ld de,...` pairs inside the command handlers — and
+the journal sweep agrees on every one of them for 154912 ticks, which is the
+other half of the argument: a wrong mask there would show up as a different
+write.

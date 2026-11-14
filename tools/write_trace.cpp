@@ -111,6 +111,18 @@ TraceOriginal(Machine1& machine)
 	machine.Cpu().eiPending = false;
 	r.iff1 = false;
 	r.iff2 = false;
+	// REGS=ff seeds every register the interrupted code could have left, so
+	// a routine that reads one it never wrote shows up as a changed journal.
+	const char* entry = getenv("REGS");
+	if (entry != NULL) {
+		const uint8_t seed = static_cast<uint8_t>(strtol(entry, NULL, 16));
+		r.af = static_cast<uint16_t>((seed << 8) | seed);
+		r.bc = static_cast<uint16_t>((seed << 8) | seed);
+		r.de = static_cast<uint16_t>((seed << 8) | seed);
+		r.hl = static_cast<uint16_t>((seed << 8) | seed);
+		r.ix = static_cast<uint16_t>((seed << 8) | seed);
+		r.iy = static_cast<uint16_t>((seed << 8) | seed);
+	}
 	r.sp = 0xF000;
 	machine.Write(--r.sp, static_cast<uint8_t>(kSentinel >> 8));
 	machine.Write(--r.sp, static_cast<uint8_t>(kSentinel & 0xff));

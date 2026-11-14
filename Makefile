@@ -246,6 +246,10 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	# there the Z80 reads the BIOS and the port has none; every code that stays
 	# has to agree exactly.
 	./vm_test build/arkanoid.rom 0 28 0
+# The same sweep with every register seeded with 0xff before each ISR call: a
+# routine that reads a register it never wrote would show up here as a changed
+# journal, which is how the mask's stale D was found.
+	REGS=ff ./write_trace build/arkanoid.rom sweep 0 28 0
 	./write_trace build/arkanoid.rom sweep 0 28 0
 	./vm_test build/arkanoid.rom 0 256 0
 	./write_trace build/arkanoid.rom sweep 0 256 0
