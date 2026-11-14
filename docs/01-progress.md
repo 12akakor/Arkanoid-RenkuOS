@@ -1753,3 +1753,28 @@ rather than tune the routine against them.
 The tree keeps the model that measures better on the in-domain codes. The last
 step is building that preset list from the sequences themselves, exactly as the
 cartridge check did for the sound codes.
+
+### The presets the cartridge actually uses, measured
+
+Watching `0xE5FC` and `0xE5E6` for every change across forty ticks of all 198
+replayable codes, on the original, gives the whole set of effect presets the game
+starts:
+
+    0x01  0x03  0x0D  0x0E
+
+Four values, all below 0x52. That settles the wrap at 0xB7ED as unobservable in
+domain: `add a,l` only wraps once the preset passes 0x51, and nothing the cartridge
+stores comes close. The earlier experiment that turned the wrap on and moved five
+codes was therefore measuring behaviour the original is never asked to produce,
+which is the rule this project has followed since the sound codes were filtered.
+
+It also says what those presets are: `0x0D` and `0x0E` are the low nibbles of `ED`
+and `EE`, so the preset in a command is its low nibble, which is what the port
+already does. The command that sets `0xE5FC` is therefore `0xE0` plus a nibble —
+and a nibble of zero is "no effect", not "effect zero".
+
+What is still open is the entry each command index resolves to. The offsets at
+0xB66E do not reconcile with the addresses decoded at 0xB710, 0xB72D, 0xB73D and
+0xB761: at least one of those is a stub that falls into another, and the mapping
+has to be measured — one command byte at a time, printing the first handler
+address the dispatcher jumps to — rather than read off the table.
