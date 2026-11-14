@@ -12,7 +12,7 @@ REF = src/ref/z80/Z80.cpp src/ref/video/Tms9918.cpp \
 	src/ref/msx1/Psg.cpp src/ref/msx1/Machine1.cpp
 GAME = src/game/Screen.cpp src/game/Renderer.cpp
 
-TOOLS = shot embed_rom mixer_trace effect_trace table_trace
+TOOLS = shot embed_rom mixer_trace effect_trace table_trace write_trace
 TESTS = rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
@@ -217,7 +217,7 @@ build/arkanoid.rom:
 
 rom: build/arkanoid.rom
 
-test: $(TESTS) build/arkanoid.rom
+test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./rom_test build/arkanoid.rom
 	./render_test build/arkanoid.rom 300
 	./routine_diff build/arkanoid.rom 1000
@@ -238,6 +238,10 @@ test: $(TESTS) build/arkanoid.rom
 	./soundplayer_test build/arkanoid.rom 300
 	./isr_test build/arkanoid.rom 400
 	./advance_test build/arkanoid.rom 400
+	./write_trace build/arkanoid.rom sweep 40 256 2
+# The same sweep again, one write journal at a time: every tick's writes to the
+# sound window compared in order, which names the instruction that differs.
+# Two ticks still differ, on two codes; see docs/01-progress.md.
 # Every sound code, forty ticks each: the whole tick, commands included. Four
 	# ticks still differ, the noise bit on two codes, so the run is allowed two
 	# mismatches and no more; see docs/01-progress.md. Tighten the 2 to 0 when the

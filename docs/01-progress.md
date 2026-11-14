@@ -2003,3 +2003,40 @@ from 0xEF while the port's reads 0x01, and its effect state is populated where t
 port's is zero. The harness therefore does what it was built for: it turns "the
 state differs" into "here is the first write that differs", which is the thing to
 chase next.
+
+### The sweep: all 136 codes in domain, every tick, write for write
+
+`write_trace <rom> sweep [ticks] [codes] [allow]` now walks every code the same
+way `vm_test` does, but compares one write journal per tick instead of the
+resulting bytes, so a difference comes with the instruction that made it:
+
+    ./write_trace build/arkanoid.rom sweep 40 256 0
+    5432 of 5434 sound ticks write the same journal as the original
+    (136 of 256 codes in domain, 120 skipped: their sequence is outside the cartridge)
+
+It lands on exactly the ticks `vm_test` fails on — codes 109 and 119, tick 37 —
+and prints the state the call was handed plus both journals:
+
+    s1 before: active 01 repeat 05 chain 02 ticks 01 pointer 2722 -> 00
+    code 109 tick 37: 16 writes in the original, 3 in the port, first difference at 1
+    n    original           port
+    0    e5dc=00 @b4bb      e5dc=00
+    1    e5dc=ef @b5d6      e5d7=04     <-
+    2    e5e6=0d @b6ae      e5dc=01
+
+Two facts fall out of it. The original writes `0xE5DC` twice before anything
+else: the countdown is decremented to zero at `0xB4BB`, and then the byte the
+pointer aimed at (`0x00`) is replaced by `0xEF` at `0xB5D6`. The port writes the
+repeat count (`0xE5D7=04`) where the original has not touched it at all, so the
+two are not in the same branch by the second write. Handing the port the
+original's own RAM at the top of every tick (a `sync` argument) does **not**
+change the result, so this is not drift carried in from an earlier tick: with
+the same start the two still part company here.
+
+The obvious reading of the disassembly — that the repeat branch rejoins the
+queue at `0xB54D`, keeps the carry set at `0xB4C1`, and so returns "parse on"
+with A holding the pointer's high half — was implemented and measured: it takes
+the sweep down to 4890/4906 with 16 mismatches, the same number an earlier
+turn's "immediate reload dispatch" produced. So that reading is wrong, or at
+least incomplete, and the code is back to 5432/5434. Recorded here so it is not
+tried again.

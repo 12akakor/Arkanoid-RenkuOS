@@ -135,14 +135,197 @@ TraceOriginal(Machine1& machine)
 	return writes;
 }
 
+
+// Both journals for one call: the original's by stepping, the port's through
+// the hook. The port reports every write, the original only changes, so the
+// ones that change nothing are dropped from the port's journal too.
+void
+Journals(Machine1& machine, State& state, SoundPlayer& player,
+	std::vector<Write>& original, std::vector<Write>& port)
+{
+	original = TraceOriginal(machine);
+
+	port.clear();
+	std::vector<uint8_t> shadow(kSoundTo - kSoundFrom);
+	memcpy(shadow.data(), state.Ram() + kSoundFrom, shadow.size());
+	state.onWrite = [&port, &shadow](uint16_t address, uint8_t value) {
+		if (address < kSoundFrom || address >= kSoundTo)
+			return;
+		if (shadow[address - kSoundFrom] == value)
+			return;
+		shadow[address - kSoundFrom] = value;
+		port.push_back({ address, value, 0 });
+	};
+	player.Tick();
+	state.onWrite = NULL;
+}
+
+
+// The index of the first write that differs, or -1 when the journals agree.
+int
+FirstDifference(const std::vector<Write>& original,
+	const std::vector<Write>& port)
+{
+	int i = 0;
+	while (i < (int)original.size() && i < (int)port.size()
+			&& original[i].address == port[i].address
+			&& original[i].value == port[i].value)
+		i++;
+	if (i == (int)original.size() && i == (int)port.size())
+		return -1;
+	return i;
+}
+
+
+// The writes around the first difference, for the instruction that made them.
+void
+ShowDifference(const std::vector<Write>& original,
+	const std::vector<Write>& port, int at)
+{
+	const int from = at > 3 ? at - 3 : 0;
+	printf("  %-4s %-18s %-10s\n", "n", "original", "port");
+	for (int n = from; n < at + 4; n++) {
+		char left[32] = "-";
+		char right[32] = "-";
+		if (n < (int)original.size())
+			snprintf(left, sizeof(left), "%04x=%02x @%04x",
+				original[n].address, original[n].value, original[n].pc);
+		if (n < (int)port.size())
+			snprintf(right, sizeof(right), "%04x=%02x",
+				port[n].address, port[n].value);
+		printf("  %-4d %-18s %-10s%s\n", n, left, right,
+			n == at ? "  <-" : "");
+	}
+}
+
+
+// Every code, every tick, one write journal at a time. The domain is the same
+// as vm_test's: a code whose sequence points outside the cartridge is skipped,
+// because there the Z80 reads memory the port does not have, and comparing it
+// would measure the difference in what was handed over, not what was done.
+int
+Sweep(Machine1& machine, const std::vector<uint8_t>& base, int ticks, int codes,
+	int allow, bool sync)
+{
+	int compared = 0;
+	int failed = 0;
+	int skipped = 0;
+	int inDomain = 0;
+
+	for (int code = 0; code < codes; code++) {
+		std::vector<uint8_t> start = base;
+		start[kInhibit] = 0;
+		start[kCanAdd] = 1;
+		start[kSoundNumber] = static_cast<uint8_t>(code);
+
+		memcpy(machine.Ram(), start.data(), start.size());
+		if (!Run(machine, kPlay)) {
+			printf("  code %d: PLAY_SOUND did not return\n", code);
+			failed++;
+			continue;
+		}
+
+		std::vector<uint8_t> initial(0x10000);
+		memcpy(initial.data(), machine.Ram(), initial.size());
+		uint8_t startRegs[16];
+		for (int reg = 0; reg < 16; reg++)
+			startRegs[reg] = machine.GetPsg().Register(reg);
+
+		State state;
+		memcpy(state.Ram(), initial.data(), initial.size());
+		SoundPlayer player(state);
+		for (int reg = 0; reg < 16; reg++)
+			player.SetPsg(reg, startRegs[reg]);
+
+		bool outside = false;
+		for (int index = 0; index < 2; index++) {
+			const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
+			if (state.Ram()[stream] == 0)
+				continue;
+			const uint16_t sequence = static_cast<uint16_t>(
+				state.Ram()[stream + 7] | (state.Ram()[stream + 8] << 8));
+			if (sequence < 0x4000 || sequence >= 0xc000)
+				outside = true;
+		}
+		if (outside) {
+			skipped++;
+			continue;
+		}
+		inDomain++;
+
+		// Both sides play the same ticks from the same state, and the port
+		// is handed no further RAM: whatever it gets wrong here it gets
+		// wrong on its own.
+		memcpy(machine.Ram(), initial.data(), initial.size());
+		for (int reg = 0; reg < 16; reg++)
+			machine.GetPsg().Write(reg, startRegs[reg]);
+
+		for (int tick = 1; tick <= ticks; tick++) {
+			// With sync the port starts every tick from the original's own
+			// memory, so a difference here is a mistake inside this call and
+			// not state carried in from an earlier one.
+			if (sync)
+				memcpy(state.Ram(), machine.Ram(), 0x10000);
+
+			// The state the call is handed, for reading the writes against.
+			std::vector<uint8_t> before(0x10000);
+			memcpy(before.data(), machine.Ram(), before.size());
+
+			std::vector<Write> original;
+			std::vector<Write> port;
+			Journals(machine, state, player, original, port);
+			compared++;
+
+			const int at = FirstDifference(original, port);
+			if (at < 0)
+				continue;
+
+			// The state the call was handed, so the writes can be read
+			// against it: the pointer and the byte it aims at are the two
+			// things ADVANCE decides on.
+			for (int index = 0; index < 2; index++) {
+				const uint16_t stream = index == 0 ? 0xE5D3 : 0xE5E9;
+				const uint16_t pointer = static_cast<uint16_t>(
+					before[stream + 7] | (before[stream + 8] << 8));
+				printf("  s%d before: active %02x repeat %02x chain %02x"
+					" ticks %02x pointer %04x -> %02x\n", index + 1,
+					before[stream], before[stream + 4], before[stream + 3],
+					before[stream + 9], pointer, before[pointer]);
+			}
+
+			printf("  code %d tick %d: %d writes in the original, %d in the"
+				" port, first difference at %d\n", code, tick,
+				(int)original.size(), (int)port.size(), at);
+			ShowDifference(original, port, at);
+			failed++;
+			break;
+		}
+	}
+
+	printf("%d of %d sound ticks write the same journal as the original",
+		compared - failed, compared);
+	if (skipped > 0)
+		printf(" (%d of %d codes in domain, %d skipped: their sequence is"
+			" outside the cartridge)", inDomain, codes, skipped);
+	printf("\n");
+	if (failed > allow) {
+		printf("%d mismatches, more than the %d allowed\n", failed, allow);
+		return 1;
+	}
+	if (failed > 0)
+		printf("%d known mismatch(es) allowed\n", failed);
+	return 0;
+}
+
 }
 
 
 int
 main(int argc, char** argv)
 {
-	if (argc < 4) {
-		fprintf(stderr, "usage: write_trace <rom> <code> <tick>\n");
+	if (argc < 3) {
+		fprintf(stderr, "usage: write_trace <rom> <code> <tick> [nosync]\n"
+			"       write_trace <rom> sweep [ticks] [codes] [allow]\n");
 		return 1;
 	}
 
@@ -164,6 +347,22 @@ main(int argc, char** argv)
 	machine.Reset();
 	for (int frame = 0; frame < 300; frame++)
 		machine.RunFrame();
+
+	std::vector<uint8_t> base(0x10000);
+	memcpy(base.data(), machine.Ram(), base.size());
+
+	if (strcmp(argv[2], "sweep") == 0) {
+		const int ticks = argc > 3 ? atoi(argv[3]) : 40;
+		const int codes = argc > 4 ? atoi(argv[4]) : 256;
+		const int allow = argc > 5 ? atoi(argv[5]) : 0;
+		const bool sync = argc > 6 && strcmp(argv[6], "sync") == 0;
+		return Sweep(machine, base, ticks, codes, allow, sync);
+	}
+
+	if (argc < 4) {
+		fprintf(stderr, "a tick is needed to compare one call\n");
+		return 1;
+	}
 
 	const int code = atoi(argv[2]);
 	const int tick = atoi(argv[3]);
