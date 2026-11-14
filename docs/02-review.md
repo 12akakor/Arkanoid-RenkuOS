@@ -217,3 +217,40 @@ keeps its rate, that the buffer size is not too small to avoid dropouts, and
 that the levels are right in a real mix — three channels summed and divided by
 three is a deliberate headroom choice, not a measurement of the chip's output
 stage.
+
+## The synthesiser checked against the chip's numbers
+
+The synth was the one part of the port with nothing to compare against: the
+cartridge's sound is a register write, and the audible result happens inside a
+chip the reference machine does not model the same way. So the comparison was
+made against the AY-3-8910 datasheet's own envelope drawings and measured
+volume ladder, plus the reference machine's PSG as a second opinion.
+
+What it found, in order of how wrong it was:
+
+* **The envelope ran sixteen times too slowly.** `F(env) = clock / (256 * EP)`
+  is the rate of a *whole sixteen-step cycle*, so a step lasts `16 * EP /
+  clock`, not `256 * EP / clock`. The synth stepped once per cycle. It now
+  divides by the same sixteen as the tone counters, and one step of an
+  EP of 256 comes out at 101 samples - which is exactly `16 * 256 / clock`
+  at 44.1 kHz.
+* **Two envelope shapes were wrong.** Shape 09 fell and then held at full
+  instead of silent; shape 0B fell and started over instead of jumping to full
+  and holding. Both are now what the datasheet draws, and all sixteen shapes
+  are checked against that drawing (`psg_test`, three cycles each).
+* **The volume ladder was a guessed 1.5 dB a step.** It is now the measured
+  table from the reference implementation, which is also what the chip's own
+  curves show: quiet steps are much quieter than 1.5 dB would make them
+  (level 1 is 1.37% of full, not 8.4%).
+* **The reference machine's PSG stepped its envelope twice too fast** - it
+  counted `clock / 8` ticks against `EP` where a step is `2 * EP` of those.
+  Fixed, though it only ever affected that machine's audio: no test compares
+  it. Its envelope *shape* sequence still does not agree with the datasheet
+  drawings, and it is not used for anything the port depends on, so it is
+  recorded here rather than chased.
+
+`psg_test` ends at 24 checks: silence, register read-back, three tone
+frequencies, volume 0, the volume-1 ratio, noise, an attack and a decay, and
+the twelve distinct envelope shapes (0x00 and 0x03 are the same shape, as are
+0x04 and 0x07). The platform's `AudioNode` hands the synth its frames; that
+file still cannot be compiled here for want of the Be headers.

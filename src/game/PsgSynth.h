@@ -56,8 +56,8 @@ private:
 			double		fEnvelopePhase;
 
 			uint32_t	fNoise;
-			int			fEnvelopeStep;
-			int			fEnvelopeDirection;
+			int			fEnvelopeStep;	// 0..15, always counted up
+			bool		fEnvelopeUp;	// which end of the step the level is read from
 			bool		fEnvelopeHolding;
 };
 

@@ -18,17 +18,28 @@ namespace {
 // noise counter, and by 256 for the envelope.
 const int kToneDivider = 16;
 const int kNoiseDivider = 16;
-const int kEnvelopeDivider = 256;
 
 
-// The AY's sixteen levels are about 1.5 dB apart, which is a quarter of an
-// octave each, and the loudest is full scale.
+
+// The sixteen levels, measured on real chips and scaled so the loudest is
+// full scale. They are not a straight 1.5 dB ladder: the top of the range is
+// about 2 dB a step and the bottom about 3.5, which is why the quiet end of an
+// envelope sounds like it does. These are the same numbers the reference
+// machine's PSG uses, so the two can be compared.
+const float kLevels[16] = {
+	0.0f, 0.0137f, 0.0205f, 0.0291f, 0.0423f, 0.0618f, 0.0847f, 0.1369f,
+	0.1691f, 0.2647f, 0.3527f, 0.4499f, 0.5704f, 0.6873f, 0.8482f, 1.0f
+};
+
+
 float
 Level(int value)
 {
-	if (value <= 0)
-		return 0.0f;
-	return powf(2.0f, (value - 15) * 0.25f);
+	if (value < 0)
+		value = 0;
+	else if (value > 15)
+		value = 15;
+	return kLevels[value];
 }
 
 }
@@ -53,7 +64,7 @@ PsgSynth::Reset()
 	fEnvelopePhase = 0.0;
 	fNoise = 1;
 	fEnvelopeStep = 0;
-	fEnvelopeDirection = 1;
+	fEnvelopeUp = false;
 	fEnvelopeHolding = false;
 }
 
@@ -67,8 +78,8 @@ PsgSynth::WritePsg(uint8_t reg, uint8_t value)
 	// A new shape restarts the envelope: the attack bit says which end it
 	// starts from, and shape 0 stops it dead because every bit is clear.
 	if (reg == 13) {
-		fEnvelopeDirection = (value & 0x04) != 0 ? 1 : -1;
-		fEnvelopeStep = fEnvelopeDirection > 0 ? 0 : 15;
+		fEnvelopeUp = (value & 0x04) != 0;
+		fEnvelopeStep = 0;
 		fEnvelopePhase = 0.0;
 		fEnvelopeHolding = false;
 	}
@@ -93,41 +104,65 @@ PsgSynth::_ToneHz(int channel) const
 }
 
 
-// One step of the envelope, at the rate the envelope period sets. The four
-// shape bits are continue, attack, alternate and hold, and they do what their
-// names say: a shape that does not continue stops at the end of its first
-// ramp, one that alternates turns round instead, and one that holds stays at
-// the level it reached.
+// One step of the envelope, at the rate the envelope period sets.
+//
+// The step counter always counts up, and the attack bit only says which end of
+// it the level is read from - 15 down to 0 for a decay, 0 up to 15 for an
+// attack. Sixteen steps make a cycle, and the four shape bits then decide what
+// the next cycle does, in this order:
+//
+//   no continue   stop, at silence  (00-03 fall and stay down, 04-07 and 0F
+//                                    rise and then drop to silence)
+//   hold          stop, at the far end the surviving direction points to
+//                 (09 and 0D hold where they got to; 0B reverses first, which
+//                 is why it jumps to full volume and stays there)
+//   alternate     turn round and run the next cycle the other way
+//   neither       run the same cycle again (08 saws down, 0C saws up)
+//
+// This is the datasheet's own reading of the shapes, and it is the one the
+// reference machine implements, so the two agree shape for shape.
 void
 PsgSynth::_StepEnvelope()
 {
 	if (fEnvelopeHolding)
 		return;
 
-	if (fEnvelopeDirection > 0) {
-		if (fEnvelopeStep < 15) {
-			++fEnvelopeStep;
-			return;
-		}
-	} else {
-		if (fEnvelopeStep > 0) {
-			--fEnvelopeStep;
-			return;
-		}
-	}
+	if (++fEnvelopeStep < 16)
+		return;
 
 	const uint8_t shape = fRegisters[13] & 0x0f;
 	const bool continuing = (shape & 0x08) != 0;
 	const bool alternate = (shape & 0x02) != 0;
 	const bool hold = (shape & 0x01) != 0;
 
-	if (!continuing || (hold && !alternate)) {
+	// A hold is a level, not a counter position, so it has to be put back
+	// through the read-out: the step that shows level L is L going up and
+	// 15 - L coming down.
+	if (!continuing) {
 		fEnvelopeHolding = true;
+		fEnvelopeStep = fEnvelopeUp ? 0 : 15;	// level 0 either way round
+		return;
+	}
+
+	if (hold) {
+		fEnvelopeHolding = true;
+		const int level = (alternate ? !fEnvelopeUp : fEnvelopeUp) ? 15 : 0;
+		fEnvelopeStep = fEnvelopeUp ? level : 15 - level;
 		return;
 	}
 
 	if (alternate)
-		fEnvelopeDirection = -fEnvelopeDirection;
+		fEnvelopeUp = !fEnvelopeUp;
+	fEnvelopeStep = 0;
+}
+
+
+// The level the envelope is presenting: the same step read from whichever end
+// the shape is running towards.
+static inline int
+EnvelopeLevel(int step, bool up)
+{
+	return up ? step : 15 - step;
 }
 
 
@@ -148,10 +183,14 @@ PsgSynth::Render(int16_t* samples, size_t frames)
 		noisePeriod = 1;
 	const double noiseHz = kClock / (kNoiseDivider * noisePeriod);
 
+	// The envelope period is the length of a whole sixteen-step cycle, so one
+	// step lasts 16 * EP / clock and the step rate is clock / (16 * EP). The
+	// datasheet's "counts down by 256, then by EP" is the cycle rate:
+	// clock / (256 * EP), which is this divided by the sixteen steps.
 	int envelopePeriod = fRegisters[11] | (fRegisters[12] << 8);
 	if (envelopePeriod == 0)
 		envelopePeriod = 1;
-	const double envelopeHz = kClock / (kEnvelopeDivider * envelopePeriod);
+	const double envelopeHz = kClock / (kToneDivider * envelopePeriod);
 
 	for (size_t frame = 0; frame < frames; frame++) {
 		// The noise counter and the envelope counter run once for the whole
@@ -186,7 +225,7 @@ PsgSynth::Render(int16_t* samples, size_t frames)
 
 			const uint8_t control = fRegisters[8 + channel];
 			const float amplitude = (control & 0x10) != 0
-				? Level(fEnvelopeStep)
+				? Level(EnvelopeLevel(fEnvelopeStep, fEnvelopeUp))
 				: Level(control & 0x0f);
 
 			bool on;

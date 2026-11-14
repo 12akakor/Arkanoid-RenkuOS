@@ -111,7 +111,10 @@ Psg::_Tick()
 	int ep = fReg[11] | (fReg[12] << 8);
 	if (ep == 0)
 		ep = 1;
-	if (!fEnvHolding && ++fEnvCount >= ep) {
+	// One step lasts 16 * EP / clock, and this tick is clock / 8, so a step is
+	// 2 * EP of them. Counting the ticks as EP made the envelope run twice as
+	// fast as the chip's.
+	if (!fEnvHolding && ++fEnvCount >= 2 * ep) {
 		fEnvCount = 0;
 		if (++fEnvStep >= 16) {
 			int shape = fReg[13];
