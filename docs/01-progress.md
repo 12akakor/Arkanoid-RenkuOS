@@ -1877,3 +1877,22 @@ while stream 2 is being dispatched would only run on the next pass — unless th
 comes back for it. The next measurement is the order of the two loops within one
 `kIsr` call at that tick: whether 0xB5D9 is entered again after 0xB5F2, which the
 `WDISP` trace prints directly.
+
+### What the register writer does, and what is left
+
+`0xB594` is the part of the ISR that puts the register image on the chip, and it
+opens by clearing the mask exactly as the port does:
+
+    0xB594  ld a,(0xE5C1) / and a / ret nz   ; the inhibit byte
+    0xB599  ld hl,0xE5C3 / ld c,(hl)
+    0xB59D  sub a / ld (hl),a                ; the mask is emptied here
+    0xB5A0  the bits of C are sent to the PSG, three at a time
+
+That is once per service call on both sides, so the mask's lifetime is the same.
+
+The stream pointers are also where the port keeps them — `0xE5DA` and `0xE5F0`,
+each compared every tick — and the tick byte is `stream+9` in both, matching
+`dec (ix+9)` at 0xB4BB. With the state, the pointers and the offsets all agreeing,
+the port not dispatching stream 1 at that tick is the remaining unexplained fact,
+and it is the thing to measure next: the tick byte `0xE5DC` read on both sides at
+the start of that one call.
