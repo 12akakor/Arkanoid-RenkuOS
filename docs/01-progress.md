@@ -1939,3 +1939,28 @@ path as there is on the "dispatch this command" path at 0xB4C1.
 Making both reloads dispatch in the same tick was tried and measured: the sweep went
 to 4890 of 4906 with sixteen differences, so it is wrong and it is reverted. The
 port keeps `false` there, which is the model that measures best.
+
+### The diff harness, and the exact stream it points at
+
+Tracing both sides with the same three events — the wait check, each command read,
+each mask write — and diffing the tails gives the failing call precisely:
+
+    WAIT s0 active 01 ticks 01 ptr 2722        (both sides identical)
+    stream e5d3 follow e8 chain 02 repeat 05 desc b405 seq 2722 waitbyte 00
+    (port) no CMD follows: Advance takes the repeat path and returns false
+    (orig) CMD bd, f4, fb, ec ... from 2723
+
+So the stream is on its **repeat** path: the byte at 0x2722 is zero, the repeat
+count goes 5 → 4, and the descriptor is re-used. The descriptor bytes make the
+port's reload correct:
+
+    0xB405: b5 22 27 2c 31 36 3b 40     -> B2 = 0xB5, B3/B4 = 0x2722 = the sequence
+
+`_Reload` reads descriptor+1 and descriptor+2, which is 0x2722 — the same pointer,
+so the pointer is not where the sides part.
+
+What differs is what happens to the tick byte. The original's reload path ends by
+writing the byte at the reloaded pointer into the stream's tick byte (0xB551), which
+here is 0x00; the port's `_Reload` writes a hard `1`. That is the last unmodelled
+detail, and it fits every observation: same state, same pointer, same table — and a
+one-tick phase difference that appears only where a repeat lands on a zero wait.
