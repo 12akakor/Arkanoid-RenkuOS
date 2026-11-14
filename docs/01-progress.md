@@ -1822,3 +1822,20 @@ That is why the budget stays at two rather than going to zero: closing it means
 finding where stream 1's pointer goes its own way (a chain or repeat hand-off is
 the likely place, since the tick counts have matched everywhere else), and the
 mask will follow once the streams agree.
+
+### Then the divergence is inside one tick
+
+The whole of `0xE000`-`0xE600` is compared every tick, and the stream pointers live
+in it — so at the end of tick 37 both sides point at the same place. The original
+still managed to run `bd f4 fb ec` from `0x2723` during that tick and then be back.
+
+The only way that fits is that a stream is dispatched **more than once per tick**:
+0xB5D9 and 0xB5F2 call the dispatchers inside a one-instruction loop (`jr -5`), and
+a sound queued while the tick is running is picked up by that loop straight away.
+The port's `Tick` runs exactly one pass per stream, so a mid-tick queue waits for
+the next tick — the sound still happens, one tick late, and the mask bit it would
+have set in that tick is missing.
+
+That is the last difference, and it is a loop shape rather than a value: the tick
+needs to keep dispatching a stream while the same checks that `0xB4B5` makes say
+there is something to do.
