@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "SoundCodes.h"
 #include "State.h"
 
 
@@ -26,11 +27,20 @@ class Sound {
 public:
 						Sound(State& state);
 
-	// ADD_SOUND (0x5BEF).
+		// ADD_SOUND (0x5BEF).
 	void				Add(uint8_t sound);
 
+	// The twelve codes in IsQueuedSoundCode are the only ones the cartridge
+	// ever queues. Add still does what the original does with anything else,
+	// because matching it is the job, but it counts them: nothing in this
+	// port should ever produce one, and a test can say so.
+			int			OutsiderCodes() const { return fOutsiderCodes; }
+			uint8_t		LastOutsider() const { return fLastOutsider; }
+
 private:
-			State&		fState;
+			State&	fState;
+			int			fOutsiderCodes = 0;
+			uint8_t		fLastOutsider = 0;
 };
 
 

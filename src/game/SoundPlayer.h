@@ -33,6 +33,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "SoundCodes.h"
 #include "State.h"
 
 
@@ -95,6 +96,13 @@ public:
 	// streams.
 	void				Play();
 
+	// Every code that reaches the chip arrives through Play(), so this is
+	// where a code the cartridge never writes is caught. It is counted rather
+	// than refused - the original's behaviour is the port's job - and the
+	// tests read the count: it has to stay at nothing.
+			int			OutsiderCodes() const { return fOutsiderCodes; }
+			uint8_t		LastOutsider() const { return fLastOutsider; }
+
 	// The part of SOUND_ISR_UPDATE (0xB594) that puts the register image on
 	// the chip, up to and including the delayed repeat effects.
 	void				Tick();
@@ -156,6 +164,8 @@ private:
 			State&		fState;
 			PsgSink*	fSink;
 			uint8_t		fRegs[16];
+			int			fOutsiderCodes = 0;
+			uint8_t		fLastOutsider = 0;
 };
 
 

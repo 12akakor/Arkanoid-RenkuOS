@@ -208,7 +208,7 @@ enum {
 	kPortalBeamStep			= 0xE32A,	// PORTAL_ANIMATION_BEAM_STEP
 	kOpenPortalPatterns		= 0x68B6,	// OPEN_PORTAL_PATTERNS
 	kPortalBeamPatterns		= 0x68BA,	// PORTAL_BEAM_PATTERNS
-	kSoundVausThroughPortal = 192,		// SOUND_VAUS_GOES_THROUGH_PORTAL_H
+	kSoundVausThroughPortal = 193,		// SOUND_VAUS_GOES_THROUGH_PORTAL_H
 
 	// The sounds these two make.
 	// The level loader's tables.

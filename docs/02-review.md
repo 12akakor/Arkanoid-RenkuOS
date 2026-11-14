@@ -365,3 +365,36 @@ given the code directly, each plays once. Both streams go inactive when the
 sequence ends, after 2181 ticks (36.35 s) for code 24 and 7541 ticks
 (125.69 s) for code 25, which is the whole sequence played through. Nothing in
 them jumps back, so neither is a loop the game forgot to stop.
+
+## The reachable sound codes, and the bug writing them down found
+
+`src/game/SoundCodes.h` now holds the domain: the twelve codes the game queues
+and the eight it writes into `SOUND_NUMBER`, each with the addresses of the
+writers it comes from, and the two predicates that decide membership. Codes 10
+to 13 and 14 to 27 are named as unreachable by not being in it.
+
+Two places count a code that falls outside: `Sound::Add`, the queue, and
+`SoundPlayer::Play`, which every code arriving at the chip passes through. Both
+still do exactly what the original does with the code - matching it is the
+job - and both record it, so a test can ask whether this port has ever invented
+a sound.
+
+`tests/sound_codes_test.cpp` (22 checks, part of `make test`) checks the domain
+itself, both choke points, that each queued code points its sequence into the
+cartridge, and then the codes the port's own call sites use against the domain.
+That last check found a real fault: the port queued **192**, the "Vaus
+increases size" sound, when the Vaus went through the portal. The cartridge
+queues **193** at both portal sites (`0x699B` and `0x6A07`, both `ld a,
+SOUND_VAUS_GOES_THROUGH_PORTAL_H` = `0xC1`). `State.h` had the constant at 192,
+so the game would have played the wrong effect. The 400-case Vaus differential
+never caught it because it takes an open portal and the Vaus at the edge of the
+field to reach that path; a constant checked against the cartridge does not
+need to reach it. The constant is 193 now, and the check stays.
+
+What this does not yet cover: the port's `Game` calls `SoundPlayer::Tick` but
+not `Play`, because the drain at `0x41E2` that takes a code out of the queue
+belongs to the part of the ISR that is not ported. So "the port never plays a
+code the original could not" is enforced where codes are produced (the
+constants) and where they would reach the chip (the counters), but not yet
+observed over a whole session of play. When the drain is ported, the counters
+are already there to assert on.

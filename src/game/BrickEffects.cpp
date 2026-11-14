@@ -6,13 +6,12 @@
 
 #include "BrickEffects.h"
 
+#include "SoundCodes.h"
+
 
 namespace {
 
 enum {
-	kSoundBrickDestroyed	= 0x02,
-	kSoundHardBrickHit		= 0x03,
-	kSoundLife				= 0xC5,
 	kNextLevel				= 0x02
 };
 
@@ -153,7 +152,7 @@ BrickEffects::ActionBrickHit()
 	fBrick.Remove(fState.Read(GameRam::kBrickRow),
 		fState.Read(GameRam::kBrickCol));
 	_DecBricksCheckLevelDone();
-	fSound.Add(kSoundBrickDestroyed);
+	fSound.Add(SoundCodes::kBrickDestroyed);
 }
 
 
@@ -305,7 +304,7 @@ BrickEffects::_CheckScoreLifeTarget()
 	fState.Write(GameRam::kLives,
 		static_cast<uint8_t>(fState.Read(GameRam::kLives) + 1));
 	DrawLives();
-	fSound.Add(kSoundLife);
+	fSound.Add(SoundCodes::kSoundLife);
 
 	uint16_t counterAddress = static_cast<uint16_t>(GameRam::kScoreLifeBcd + 3);
 	const uint8_t counter = static_cast<uint8_t>(
@@ -427,7 +426,7 @@ BrickEffects::_HardBrickBounce(uint8_t kind)
 	fState.Write(GameRam::kBrickHitXPixel, column);
 
 	_UpdateHardBrickTable(kind, vram);
-	fSound.Add(kSoundHardBrickHit);
+	fSound.Add(SoundCodes::kHardBrickHit);
 }
 
 

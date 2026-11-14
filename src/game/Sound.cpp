@@ -17,9 +17,18 @@ Sound::Sound(State& state)
 // ADD_SOUND (0x5BEF). Nothing is queued while the lasers fire, the code goes
 // into the buffer at the current count, and the count advances but stops at 7:
 // the buffer has eight slots, so the eighth is never used.
+//
+// A code the cartridge never queues is still handled the way the original
+// handles it - matching it is the job - but it is counted, so a test can show
+// that this port never produces one.
 void
 Sound::Add(uint8_t sound)
 {
+	if (!SoundCodes::IsQueued(sound)) {
+		fOutsiderCodes++;
+		fLastOutsider = sound;
+	}
+
 	if (fState.Read(GameRam::kLasersFiring) != 0)
 		return;
 

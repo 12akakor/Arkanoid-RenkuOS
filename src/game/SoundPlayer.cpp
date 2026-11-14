@@ -62,6 +62,14 @@ SoundPlayer::Play()
 {
 	const uint8_t code = fState.Read(kSoundNumber);
 
+	// The twenty codes in SoundCodes.h are the whole of what the cartridge
+	// puts here. Anything else is counted: the port must not invent a sound,
+	// and only the tests can say whether it has.
+	if (!SoundCodes::IsReachable(code)) {
+		fOutsiderCodes++;
+		fLastOutsider = code;
+	}
+
 	if (code < 128) {
 		Queue(kStream1, static_cast<uint8_t>(code + 6));
 		return;
