@@ -83,6 +83,11 @@ Call(Machine1& machine, uint16_t address, int watch = -1)
 			// Watch the bytes a sequence writes rather than the code that
 			// writes them: the difference is real behaviour, not a replay.
 			const uint16_t pc = r.pc;
+			if (getenv("WCMD") != NULL && atoi(getenv("WCMD")) == watch
+					&& (pc == 0xb640 || pc == 0xb64a)) {
+				printf("    cmd@%04x bc %04x byte %02x\n", pc, r.bc,
+					machine.Read(r.bc));
+			}
 			static const uint16_t kWatch[4] = { 0xE5FC, 0xE5F7, 0xE5E1, 0xE5C3 };
 			uint8_t before[4];
 			for (int i = 0; i < 4; i++)

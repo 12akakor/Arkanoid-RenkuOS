@@ -1660,3 +1660,21 @@ primary table's shared tail sets. The port runs `d1 a8 f8 90 e0` across the two
 streams for that tick and none of those sets it, so the difference is which
 commands the streams run, not what a command does - the next trace is a dispatch
 comparison, not another routine.
+
+### The last four are an ordering question, not an opcode
+
+`WCMD` (added to `vm_test`) prints the byte and address each dispatcher reads at a
+watched tick, so the original's command stream can be compared directly. For code
+197 tick 1 the two streams run exactly the port's commands — stream 1 `06 ad b1
+81 15`, stream 2 `a8 f8 90 e0 07` — so no command is missing or extra.
+
+Tracing `UPDATE_VOLUME`'s entry in the port shows where the mask bit goes. The
+stream 2 call for that tick arrives with `flags 0x00`: the `e0` handler has already
+cleared `0xE5F7`, so the updater returns at its first test and never reaches the
+`mask |= 0x40` tail at 0xB759. The original ends the tick with the bit set and the
+same `0xE5F7` value as the port, so within the tick it must have updated the volume
+while the flags were still live — before that clear — and the two then agree again.
+
+The ISR runs the dispatches and the two period/volume pairs inline in an order
+0xB5EE onwards spells out; the port's tick interleaves them differently. That is
+the remaining question, and it is a scheduling one, not a shift or an address.
