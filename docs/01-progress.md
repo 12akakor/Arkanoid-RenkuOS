@@ -1725,3 +1725,31 @@ The change is not in the tree. It swaps one wrong byte for another rather than
 closing it, and the entry model for `INIT_EFFECT` from this handler is the part
 still unproven — the next step is to trace 0xB7E6 the way 0xB831 was traced here,
 which will say whether the effect state write belongs to that call at all.
+
+### INIT_EFFECT read exactly, and a table that wraps
+
+`tools/effect_trace.cpp` runs 0xB7E6 on the reference machine with a chosen preset
+and prints every instruction plus every change to the effect state bytes. With the
+preset `0xE0` it reproduces the state the original leaves behind:
+
+    0xB7EA  ld hl,0xB4AE
+    0xB7ED  add a,l          ; low byte only: the table wraps, carry dropped
+    0xB7EE  ld l,a
+    0xB7EF  ld l,(hl)        ; block index
+    0xB7F1  dec hl / ld (hl) = header & 0x70
+    0xB7F6  dec hl / ld (hl) = block low
+    0xB807  inc (hl) / read the step byte from 0xB400|block
+    0xB810  and 0xC0 / scf / rra -> the top bits, kept for the status byte
+    0xB824  and 0x3F / inc a   -> the level
+    0xB82A  or that            -> status = level | top bits
+
+`_Step` already builds that byte the same way; the one thing the port does not do
+is the wrap at 0xB7ED. Wiring the wrap in changes five other codes as well, though,
+which is the useful negative result: those runs reach 0xB7E6 with presets the game
+never stores, so the sweep is comparing behaviour outside the domain the original
+is called with. Any further work on this byte has to filter the presets first
+rather than tune the routine against them.
+
+The tree keeps the model that measures better on the in-domain codes. The last
+step is building that preset list from the sequences themselves, exactly as the
+cartridge check did for the sound codes.

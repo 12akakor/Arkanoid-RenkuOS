@@ -12,7 +12,7 @@ REF = src/ref/z80/Z80.cpp src/ref/video/Tms9918.cpp \
 	src/ref/msx1/Psg.cpp src/ref/msx1/Machine1.cpp
 GAME = src/game/Screen.cpp src/game/Renderer.cpp
 
-TOOLS = shot embed_rom mixer_trace
+TOOLS = shot embed_rom mixer_trace effect_trace
 TESTS = rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
@@ -28,6 +28,9 @@ all: $(TOOLS)
 
 shot: tools/shot.cpp $(REF) src/ref/msx1/Machine1.h src/ref/video/Tms9918.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/shot.cpp $(REF)
+
+effect_trace: tools/effect_trace.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/effect_trace.cpp $(REF)
 
 mixer_trace: tools/mixer_trace.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/mixer_trace.cpp $(REF)
