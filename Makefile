@@ -17,7 +17,7 @@ TESTS = rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
 	levels_test lives_test soundplayer_test isr_test isr_trace isr_multi \
-	advance_test
+	advance_test vm_test
 
 # Every binary depends on every game header: a changed constant in State.h has
 # to rebuild the tests, or a stale binary silently passes.
@@ -90,6 +90,12 @@ brickeffect_test: tests/brickeffect_test.cpp src/game/BrickEffects.cpp \
 advance_test: tests/advance_test.cpp src/game/SoundPlayer.cpp src/game/State.cpp \
 		src/game/RomImage.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/advance_test.cpp \
+		src/game/SoundPlayer.cpp src/game/State.cpp src/game/RomImage.cpp \
+		$(REF)
+
+vm_test: tests/vm_test.cpp src/game/SoundPlayer.cpp src/game/State.cpp \
+		src/game/RomImage.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/vm_test.cpp \
 		src/game/SoundPlayer.cpp src/game/State.cpp src/game/RomImage.cpp \
 		$(REF)
 

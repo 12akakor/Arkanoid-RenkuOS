@@ -238,7 +238,9 @@ SoundPlayer::WriteRegisters()
 
 
 // SOUND_ISR_UPDATE (0xB594). A tick called with sound inhibited does nothing at
-// all, which is what the game does between rounds.
+// all, which is what the game does between rounds. Otherwise: the register
+// image goes out, both streams get a chance to advance and run their commands,
+// and then the three updaters walk the ramps that the commands set up.
 void
 SoundPlayer::Tick()
 {
@@ -246,6 +248,180 @@ SoundPlayer::Tick()
 		return;
 
 	WriteRegisters();
+
+	for (int index = 0; index < 2; index++) {
+		const uint16_t stream = index == 0 ? kStream1 : kStream2;
+		const uint16_t pointerAddress = index == 0 ? kPointer1 : kPointer2;
+		const uint16_t pointer = Read16(pointerAddress);
+
+		if (!Advance(stream, pointer))
+			continue;
+
+		// The byte the stream stopped on is the wait for the next tick.
+		fState.Write(stream + kTicks, fState.Read(pointer));
+
+		// The two dispatchers load each other's table: DISPATCH_PRIMARY
+		// (0xB63E) uses TBL_SECONDARY_SOUND_CMD_ENTRY_OFFSETS and
+		// DISPATCH_SECONDARY (0xB649) uses the primary one. The first stream
+		// therefore runs the commands the tables call secondary.
+		Write16(pointerAddress, Dispatch(stream, pointer, index != 0));
+	}
+
+	uint16_t accumulator = Read16(kRegsBuffer);
+	accumulator = _UpdatePeriod(static_cast<uint16_t>(kStream1 + 11), 0x01,
+		accumulator);
+	Write16(kRegsBuffer, accumulator);
+
+	uint8_t volume = fState.Read(kVolumeControl);
+	volume = _UpdateVolume(static_cast<uint16_t>(kStream1 + 14), 0x10, volume);
+	volume = _UpdateDelay(0x10, volume);
+	fState.Write(kVolumeControl, volume);
+
+	accumulator = Read16(kPeriodControl);
+	accumulator = _UpdatePeriod(static_cast<uint16_t>(kStream2 + 11), 0x02,
+		accumulator);
+	Write16(kPeriodControl, accumulator);
+
+	volume = fState.Read(kVolume);
+	volume = _UpdateVolume(static_cast<uint16_t>(kStream2 + 14), 0x40, volume);
+	fState.Write(kVolume, volume);
+}
+
+
+uint16_t
+SoundPlayer::Read16(uint16_t address)
+{
+	return static_cast<uint16_t>(fState.Read(address)
+		| (fState.Read(address + 1) << 8));
+}
+
+
+void
+SoundPlayer::Write16(uint16_t address, uint16_t value)
+{
+	fState.Write(address, static_cast<uint8_t>(value & 0xff));
+	fState.Write(address + 1, static_cast<uint8_t>(value >> 8));
+}
+
+
+// UPDATE_PERIOD_EFFECT (0xB77B): a period ramp. The state's first byte holds
+// the flags, the second the tick countdown and the third the delta; the delta
+// is taken as signed and added to the period the register image holds.
+uint16_t
+SoundPlayer::_UpdatePeriod(uint16_t state, uint8_t d, uint16_t accumulator)
+{
+	const uint8_t flags = fState.Read(state);
+	if ((flags & 0x80) == 0)
+		return accumulator;
+
+	++state;
+	uint8_t ticks = static_cast<uint8_t>(fState.Read(state) - 1);
+	fState.Write(state, ticks);
+	if (ticks != 0)
+		return accumulator;
+
+	fState.Write(state, static_cast<uint8_t>(flags & 0x07));
+
+	++state;
+	uint8_t delta = fState.Read(state);
+	if ((flags & 0x40) != 0) {
+		delta = static_cast<uint8_t>(-delta);
+		fState.Write(state, delta);
+	}
+
+	accumulator = static_cast<uint16_t>(accumulator
+		+ static_cast<int16_t>(static_cast<int8_t>(delta)));
+	_Mask(d);
+	return accumulator;
+}
+
+
+// UPDATE_VOLUME_EFFECT (0xB79B): a volume ramp, two steps at a time upward or
+// one downward, and when its count runs out it walks to the next step of its
+// preset block.
+uint8_t
+SoundPlayer::_UpdateVolume(uint16_t state, uint8_t d, uint8_t a)
+{
+	uint8_t c = a;
+	uint8_t flags = fState.Read(state);
+	if ((flags & 0x80) == 0)
+		return c;
+
+	++state;
+	uint8_t ticks = static_cast<uint8_t>(fState.Read(state) - 1);
+	fState.Write(state, ticks);
+	if (ticks != 0)
+		return c;
+
+	fState.Write(state, static_cast<uint8_t>(flags & 0x0f));
+
+	++state;
+	uint8_t count = static_cast<uint8_t>(fState.Read(state) - 1);
+	fState.Write(state, count);
+
+	if (count == 0) {
+		++state;
+		++state;
+		const uint8_t sum = static_cast<uint8_t>(
+			fState.Read(state) + 0xf0);
+		fState.Write(state, sum);
+		--state;
+
+		if (sum != 0) {
+			_Step(state);
+		} else {
+			fState.Write(static_cast<uint16_t>(state - 2), 0);
+		}
+		return c;
+	}
+
+	if ((flags & 0x40) != 0) {
+		c = static_cast<uint8_t>(c + 2);
+		if (c > 15) {
+			c = 15;
+			return c;
+		}
+		_Mask(d);
+		return c;
+	}
+
+	if (c == 0)
+		return c;
+	c = static_cast<uint8_t>(c - 1);
+	_Mask(d);
+	return c;
+}
+
+
+// UPDATE_DELAYED_REPEAT_EFFECT (0xB7CF): the delay that keeps a note repeating
+// while its count lasts.
+uint8_t
+SoundPlayer::_UpdateDelay(uint8_t d, uint8_t c)
+{
+	if (c == 0)
+		return c;
+
+	uint16_t hl = kDelayStatus;
+	const uint8_t status = fState.Read(hl);
+	if ((status & 0x80) == 0)
+		return c;
+
+	++hl;
+	uint8_t ticks = static_cast<uint8_t>(fState.Read(hl) - 1);
+	fState.Write(hl, ticks);
+	if (ticks != 0)
+		return c;
+
+	const uint8_t value = static_cast<uint8_t>(
+		fState.Read(kDelayStatus) & 0x1f);
+	fState.Write(kDelayStateC, value);
+
+	c = static_cast<uint8_t>(c - 1);
+	if (c == 0)
+		fState.Write(kDelayStatus, value);
+
+	_Mask(d);
+	return c;
 }
 
 
@@ -323,4 +499,369 @@ SoundPlayer::_Reload(uint16_t stream, uint16_t descriptor)
 	fState.Write(stream + kSequenceLow, fState.Read(sequence));
 	fState.Write(stream + kSequenceHigh, fState.Read(sequence + 1));
 	fState.Write(stream + kTicks, 1);
+}
+
+
+// ---------------------------------------------------------------------------
+// The command handlers, 0xB676.
+
+
+void
+SoundPlayer::_Mask(uint8_t d)
+{
+	fState.Write(kRegMask, static_cast<uint8_t>(fState.Read(kRegMask) | d));
+}
+
+
+void
+SoundPlayer::_Volume(uint8_t d, uint8_t value)
+{
+	fState.Write(kVolumeControl, value);
+	_Mask(d);
+}
+
+
+// CMD_SET_ONE_NOTE_ON_CHANNEL (0xB6E6) and the shared tail at 0xB700.
+uint16_t
+SoundPlayer::_Note(uint16_t stream, uint16_t bc, uint16_t hl, uint8_t d,
+	uint8_t e)
+{
+	uint8_t a = static_cast<uint8_t>(fState.Read(stream + 11) & 0x07);
+	fState.Write(stream + 12, a);
+
+	if ((fState.Read(stream + 11) & 0x40) != 0) {
+		const uint8_t delta = fState.Read(stream + 13);
+		if ((delta & 0x80) != 0)
+			fState.Write(stream + 13, static_cast<uint8_t>(-delta));
+	}
+
+	fState.Write(hl, e);
+	++bc;
+	a = fState.Read(bc);
+	--hl;
+	fState.Write(hl, a);
+
+	// 0xB705: the bit goes up only when the channel's bit is already in the
+	// flags, which is the opposite of how it reads at a glance.
+	if ((fState.Read(kFlags) & d) != 0)
+		fState.Write(kFlags, static_cast<uint8_t>(fState.Read(kFlags) | 0x08));
+
+	_Mask(d);
+	return bc;
+}
+
+
+// The effect-state entry at 0xB6CD: start or continue a period or volume ramp.
+uint16_t
+SoundPlayer::_Effect(uint16_t stream, uint16_t bc, uint16_t hl, uint8_t a,
+	uint8_t e)
+{
+	(void)stream;
+	fState.Write(hl, a);
+	if (a == 0)
+		return bc;
+
+	fState.Write(hl, static_cast<uint8_t>(a | 0x80));
+	++bc;
+
+	const uint8_t byte = fState.Read(bc);
+	const uint8_t rotated = static_cast<uint8_t>((byte << 1) | (byte >> 7));
+	const bool carry = (rotated & 0x01) != 0;
+
+	uint8_t value = rotated;
+	value = static_cast<uint8_t>((value & 0x80) | (value >> 1));
+	if (!carry) {
+		value = byte;
+		fState.Write(hl, static_cast<uint8_t>(fState.Read(hl) | 0x40));
+	}
+
+	fState.Write(hl + 1, e);
+	fState.Write(hl + 2, value);
+	return bc;
+}
+
+
+// LOAD_NEXT_EFFECT_PRESET_STEP (0xB807). HL points at the byte that counts
+// through a preset block; the three bytes below it are the tick period, the
+// level and the level with its two flag bits.
+void
+SoundPlayer::_Step(uint16_t& hl)
+{
+	fState.Write(hl, static_cast<uint8_t>(fState.Read(hl) + 1));
+	const uint8_t step = fState.Read(static_cast<uint16_t>(0xb400
+		| fState.Read(hl)));
+
+	const uint8_t flags = static_cast<uint8_t>(0x80 | ((step & 0xc0) >> 1));
+	const bool plain = flags == 0xe0;
+
+	--hl;
+	fState.Write(hl, 1);
+	if (!plain)
+		fState.Write(hl, static_cast<uint8_t>(((step & 0x78) >> 3) + 1));
+
+	uint8_t level = plain
+		? static_cast<uint8_t>(step & 0x3f)
+		: static_cast<uint8_t>(step & 0x07);
+	level = static_cast<uint8_t>((level & 0x3f) + 1);
+
+	--hl;
+	fState.Write(hl, level);
+	--hl;
+	fState.Write(hl, static_cast<uint8_t>(level | flags));
+}
+
+
+// INIT_EFFECT_FROM_PRESET (0xB7E6). The preset index is the byte at 'state';
+// the table at 0xB4AE turns it into the low byte of a block. The two bytes
+// above the state take the block's flags and its address, and the three below
+// take the first step. The value returned is the volume the command puts in
+// the register image: the block's low nibble when the block opens with bit 7
+// set, the first step's own byte when it does not.
+uint8_t
+SoundPlayer::_InitEffect(uint16_t state)
+{
+	const uint8_t preset = fState.Read(state);
+	if (preset == 0)
+		return 0;
+
+	const uint16_t block = static_cast<uint16_t>(0xb400
+		| fState.Read(0xb4ae + preset));
+	const uint8_t header = fState.Read(block);
+
+	fState.Write(state - 1, static_cast<uint8_t>(header & 0x70));
+	fState.Write(state - 2, static_cast<uint8_t>(block & 0xff));
+
+	uint16_t hl = static_cast<uint16_t>(state - 2);
+	_Step(hl);
+
+	return (header & 0x80) != 0
+		? static_cast<uint8_t>(header & 0x0f)
+		: fState.Read(block + 1);
+}
+
+
+// UPDATE_MIXER_FROM_CHANNEL_MASK (0xB82D): clears the stream's channel byte and
+// folds the two new channel bits into the voice control register.
+void
+SoundPlayer::_MixerMask(uint16_t stream, uint8_t d, uint8_t e, uint16_t bc)
+{
+	fState.Write(stream + 11, 0);
+
+	uint8_t l = fState.Read(kVoiceControl);
+	const uint8_t command = fState.Read(bc);
+
+	bool carry = (command & 0x01) != 0;
+	uint8_t h = static_cast<uint8_t>((command >> 1) | (carry ? 0x80 : 0));
+
+	uint8_t a = e;
+	if (carry) {
+		a = static_cast<uint8_t>(~a);
+		l = static_cast<uint8_t>(l & a);
+	}
+	l = static_cast<uint8_t>(l | a);
+
+	carry = (h & 0x01) != 0;
+	h = static_cast<uint8_t>(h >> 1);
+
+	a = d;
+	if (carry) {
+		a = static_cast<uint8_t>(~a);
+		l = static_cast<uint8_t>(l & a);
+	}
+	a = static_cast<uint8_t>(l | a);
+	fState.Write(kVoiceControl, static_cast<uint8_t>(a | 0x80));
+}
+
+
+// One command byte. The high nibble picks the handler through the table the
+// dispatcher chose, the low nibble is its parameter, and BC walks forward
+// through the sequence.
+uint16_t
+SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
+	bool primaryTable)
+{
+	const uint8_t index = static_cast<uint8_t>((command >> 4) & 0x07);
+	const uint8_t e = static_cast<uint8_t>(command & 0x0f);
+	uint16_t state = static_cast<uint16_t>(stream + 11);	// period effect
+
+	if (primaryTable) {
+		switch (index) {
+			case 0:
+				return _Note(stream, bc, kPeriodControlHi, 0x02, e);
+
+			case 1:
+				fState.Write(kEnvelopeShape, e);
+				_Mask(0x20);
+				return bc;
+
+			case 2:
+				if ((e & 0x08) != 0) {
+					_MixerMask(stream, 0x08, 0x02, bc);
+					fState.Write(kEnvelopeShape, e);
+					_Mask(0x20);
+					return bc;
+				}
+				return _Effect(stream, bc, state, e, e);
+
+			case 3: {
+				if ((e & 0x08) == 0) {
+					fState.Write(kFlags, static_cast<uint8_t>(
+						(e << 1) | (e >> 7)));
+					return bc;
+				}
+				fState.Write(kComplexFlags, e);
+				++bc;
+				uint8_t a = fState.Read(bc);
+				fState.Write(kComplexA, a);
+				++bc;
+				a = fState.Read(bc);
+				fState.Write(kComplexB, a);
+				_Mask(0x80);
+				return bc;
+			}
+
+			case 4: {
+				uint8_t a = e;
+				for (int i = 0; i < 4; i++)
+					a = static_cast<uint8_t>((a << 1) | (a >> 7));
+				fState.Write(kComplexA, a);
+				++bc;
+				a = fState.Read(bc);
+				fState.Write(kComplexB, a);
+				_Mask(0x80);
+				return bc;
+			}
+
+			case 5: {
+				bc = _Note(stream, bc, kAuxPeriodHi, 0x04, e);
+				const uint8_t volume = _InitEffect(0xe5fc);
+				_Volume(0x40, volume);
+				return bc;
+			}
+
+			case 6:
+				_Volume(0x40, e);
+				return bc;
+
+			default: {
+				if ((e & 0x08) != 0) {
+					_MixerMask(stream, 0x02, 0x00, bc);
+					fState.Write(0xe5fc, 0);
+					fState.Write(0xe5f7, 0);
+					_Volume(0x40, e);
+					return bc;
+				}
+				fState.Write(0xe5fc, e);
+				if (e != 0) {
+					const uint8_t volume = _InitEffect(0xe5fc);
+					_Volume(0x40, volume);
+				} else {
+					fState.Write(0xe5f7, 0);
+				}
+				return bc;
+			}
+		}
+	}
+
+	switch (index) {
+		case 0: {
+			bc = _Note(stream, bc, 0xe5c5, 0x01, e);
+			const uint8_t volume = _InitEffect(0xe5e6);
+			uint8_t status = static_cast<uint8_t>(
+				fState.Read(kDelayStatus) & 0x1f);
+			if (status != 0) {
+				fState.Write(kDelayStatus, static_cast<uint8_t>(
+					fState.Read(kDelayStatus) | 0x80));
+				fState.Write(kDelayStateC, status);
+			}
+			_Volume(0x10, volume);
+			return bc;
+		}
+
+		case 1: {
+			uint8_t status = static_cast<uint8_t>(
+				fState.Read(kDelayStatus) & 0x1f);
+			if (status != 0) {
+				fState.Write(kDelayStatus, static_cast<uint8_t>(
+					fState.Read(kDelayStatus) | 0x80));
+				fState.Write(kDelayStateC, status);
+			}
+			_Volume(0x10, e);
+			return bc;
+		}
+
+		case 2:
+			if ((e & 0x08) != 0) {
+				_MixerMask(stream, 0x08, 0x01, bc);
+				fState.Write(kDelayStatus, 0);
+				fState.Write(0xe5e6, 0);
+				fState.Write(0xe5e1, 0);
+				_Volume(0x10, e);
+				return bc;
+			}
+			return _Effect(stream, bc, state, e, e);
+
+		case 3:
+			fState.Write(0xe5e6, e);
+			if (e == 0) {
+				fState.Write(0xe5e1, 0);
+				return bc;
+			}
+			{
+				const uint8_t volume = _InitEffect(0xe5e6);
+				uint8_t status = static_cast<uint8_t>(
+					fState.Read(kDelayStatus) & 0x1f);
+				if (status != 0) {
+					fState.Write(kDelayStatus, static_cast<uint8_t>(
+						fState.Read(kDelayStatus) | 0x80));
+					fState.Write(kDelayStateC, status);
+				}
+				_Volume(0x10, volume);
+			}
+			return bc;
+
+		case 4: {
+			if (e == 0) {
+				fState.Write(kDelayStatus, 0);
+				return bc;
+			}
+			fState.Write(kDelayStateC, e);
+			fState.Write(kDelayStatus, static_cast<uint8_t>(e | 0x80));
+			return bc;
+		}
+
+		case 5: {
+			const uint8_t a = static_cast<uint8_t>(e | 0x10);
+			fState.Write(kDelayStateC, a);
+			fState.Write(kDelayStatus, static_cast<uint8_t>(a | 0x80));
+			return bc;
+		}
+
+		case 6:
+			fState.Write(kNoise, e);
+			_Mask(0x08);
+			return bc;
+
+		default: {
+			const uint8_t a = static_cast<uint8_t>(e | 0x10);
+			fState.Write(kNoise, a);
+			_Mask(0x08);
+			return bc;
+		}
+	}
+}
+
+
+// The dispatcher: read command bytes until one has bit 7 clear, which is the
+// wait count for the next tick, and leave the stream pointer on it.
+uint16_t
+SoundPlayer::Dispatch(uint16_t stream, uint16_t pointer, bool primary)
+{
+	for (;;) {
+		++pointer;
+		const uint8_t command = fState.Read(pointer);
+		if ((command & 0x80) == 0)
+			return pointer;
+		pointer = _Command(stream, pointer, command, primary);
+	}
 }

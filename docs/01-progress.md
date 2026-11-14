@@ -1455,3 +1455,30 @@ The preset engine writes five bytes below the state it is given - for
 
 The engine's arithmetic is not yet derived, so the preset-dependent commands
 (secondary 0, 1, 2, 3 and primary 5, 7) still cannot be written.
+
+### The command VM, written
+
+The handler block is now in C++: all sixteen entries, the dispatcher, the preset
+engine and the three updaters, in `SoundPlayer::_Command`, `Dispatch`,
+`_InitEffect` / `_Step`, `_UpdatePeriod`, `_UpdateVolume` and `_UpdateDelay`.
+
+Two things the differential test (`vm_test`) found within minutes of existing:
+
+1. **The two dispatchers load each other's table.** `DISPATCH_PRIMARY` (0xB63E)
+   uses `TBL_SECONDARY_SOUND_CMD_ENTRY_OFFSETS`, and `DISPATCH_SECONDARY`
+   (0xB649) uses the primary one. The first stream therefore runs the commands
+   the tables call secondary. With the tables the "right" way round, every
+   command landed in the wrong handler and the channel mask came out as 0xA2
+   instead of 0x11.
+2. **`0xB705` is the opposite of how it reads.** `and d; jr z` means the
+   parallel bit goes up only when the channel's bit is *already* set.
+
+Current state of the test, which is in the tree but not in `make test` because it
+does not pass yet:
+
+    45 of 70 sound ticks agree with the original
+
+Two discrepancies remain and both are in the same place - the voice control
+register comes out 0xFE where the original has 0xBE, and the volume control 0x00
+where the original has 0x0F - so they are almost certainly one mistake in
+`_MixerMask` or in the volume the note command takes from its preset.

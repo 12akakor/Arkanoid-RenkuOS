@@ -60,6 +60,21 @@ public:
 		kRegMask			= 0xE5C3,	// SOUND_REG_MASK
 		kRegsBuffer			= 0xE5C4,	// SOUNDS_REGS_BUFFER, regs 0..13
 		kFlags				= 0xE5D2,	// SOUND_PARALLEL, bit 3 re-sends reg 13
+		kPeriodControl		= 0xE5C6,
+		kPeriodControlHi	= 0xE5C7,
+		kAuxPeriodLo		= 0xE5C8,
+		kAuxPeriodHi		= 0xE5C9,
+		kNoise				= 0xE5CA,
+		kVolumeControl		= 0xE5CC,
+		kEnvelopeShape		= 0xE5CD,
+		kVolume				= 0xE5CE,
+		kComplexA			= 0xE5CF,
+		kComplexB			= 0xE5D0,
+		kComplexFlags		= 0xE5D1,
+		kPointer1			= 0xE5DA,	// SOUND_PTR_1
+		kPointer2			= 0xE5F0,	// SOUND_PTR_2
+		kDelayStatus		= 0xE5E7,
+		kDelayStateC		= 0xE5E8,
 
 		kActive				= 0,
 		kPriority			= 1,
@@ -122,6 +137,13 @@ private:
 			void		_MixerMask(uint16_t stream, uint8_t d, uint8_t e,
 							uint16_t bc);
 			void		_Volume(uint8_t d, uint8_t value);
+			uint16_t	_UpdatePeriod(uint16_t state, uint8_t d,
+							uint16_t accumulator);
+			uint8_t		_UpdateVolume(uint16_t state, uint8_t d, uint8_t a);
+			uint8_t		_UpdateDelay(uint8_t d, uint8_t c);
+			void		_Step(uint16_t& hl);
+			uint16_t	Read16(uint16_t address);
+			void		Write16(uint16_t address, uint16_t value);
 
 			State&		fState;
 			PsgSink*	fSink;
