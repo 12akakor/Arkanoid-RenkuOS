@@ -13,7 +13,7 @@ REF = src/ref/z80/Z80.cpp src/ref/video/Tms9918.cpp \
 GAME = src/game/Screen.cpp src/game/Renderer.cpp
 
 TOOLS = shot embed_rom mixer_trace effect_trace table_trace write_trace
-TESTS = rom_test render_test routine_diff input_test brick_test \
+TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
 	levels_test lives_test soundplayer_test isr_test isr_trace isr_multi \
@@ -99,6 +99,9 @@ brickeffect_test: tests/brickeffect_test.cpp src/game/BrickEffects.cpp \
 		src/game/Playfield.cpp src/game/Sound.cpp src/game/Capsules.cpp \
 		src/game/Random.cpp src/game/Screen.cpp \
 		src/game/State.cpp src/game/RomImage.cpp $(REF)
+
+psg_test: tests/psg_test.cpp src/game/PsgSynth.cpp src/game/PsgSynth.h
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/psg_test.cpp src/game/PsgSynth.cpp
 
 advance_test: tests/advance_test.cpp src/game/SoundPlayer.cpp src/game/State.cpp \
 		src/game/RomImage.cpp $(REF)
@@ -222,6 +225,7 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 # target, where the platform layer lives. Syntax-checking it here means a
 # change to its interface cannot rot unnoticed.
 	$(CXX) $(CXXFLAGS) -Isrc -fsyntax-only src/game/Game.cpp
+	./psg_test
 	./rom_test build/arkanoid.rom
 	./render_test build/arkanoid.rom 300
 	./routine_diff build/arkanoid.rom 1000

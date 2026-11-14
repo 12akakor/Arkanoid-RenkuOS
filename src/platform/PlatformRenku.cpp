@@ -22,6 +22,7 @@
 #include <Application.h>
 #include <Bitmap.h>
 #include <Cursor.h>
+#include <Locker.h>
 #include <Message.h>
 #include <MessageRunner.h>
 #include <Screen.h>
@@ -33,6 +34,9 @@
 
 #include "game/Game.h"
 #include "game/Input.h"
+#include "game/PsgSynth.h"
+
+#include <SoundPlayer.h>
 
 
 namespace {
@@ -64,30 +68,100 @@ const KeyBinding kBindings[] = {
 }
 
 
-// Where the driver's PSG writes arrive. The register image is kept here so the
-// node that turns it into samples has something to read and so the writes can
-// be seen while the audio path is still being built; synthesising from it is
-// the next step and needs the target.
+const int kSampleRate = 44100;
+
+
+// What the node is asked for: 44.1 kHz, sixteen bits, two channels, in the
+// order the synthesiser writes them.
+const media_raw_audio_format&
+AudioFormat()
+{
+	static const media_raw_audio_format format = [] {
+		media_raw_audio_format result;
+		result.frame_rate = kSampleRate;
+		result.channel_count = 2;
+		result.format = media_raw_audio_format::B_AUDIO_SHORT;
+		result.byte_order = B_MEDIA_LITTLE_ENDIAN;
+		result.buffer_size = 4096;
+		return result;
+	}();
+	return format;
+}
+
+
+// Where the driver's PSG writes arrive, and where the samples come from.
+//
+// The driver writes registers from the game thread while the audio node renders
+// from its own, so both sides take the lock. The synthesis itself is in
+// PsgSynth, which knows nothing about the Be API and is tested on its own.
 class PsgOutput : public SoundPlayer::PsgSink {
 public:
 						PsgOutput()
+							:
+							fSynth(kSampleRate)
 						{
-							memset(fRegisters, 0, sizeof(fRegisters));
 						}
 
 	virtual	void		WritePsg(uint8_t reg, uint8_t value)
 						{
-							fRegisters[reg & 15] = value;
+							BAutolock lock(fLock);
+							fSynth.WritePsg(reg, value);
 						}
 
 	virtual	uint8_t		ReadPsg(uint8_t reg)
 						{
-							return fRegisters[reg & 15];
+							BAutolock lock(fLock);
+							return fSynth.ReadPsg(reg);
+						}
+
+	// Called from the sound thread, with the format the node was made with:
+	// signed 16-bit stereo.
+	void				Render(int16_t* samples, size_t frames)
+						{
+							BAutolock lock(fLock);
+							fSynth.Render(samples, frames);
 						}
 
 private:
-			uint8_t		fRegisters[16];
+			BLocker		fLock;
+			PsgSynth	fSynth;
 };
+
+
+// The node that asks for those samples.
+class AudioNode : public BSoundPlayer {
+public:
+						AudioNode(PsgOutput& output);
+
+	static	void		Fill(void* cookie, void* buffer, size_t size,
+							const media_raw_audio_format& format);
+};
+
+
+AudioNode::AudioNode(PsgOutput& output)
+	:
+	BSoundPlayer(&AudioFormat(), "arkanoid sound", &AudioNode::Fill, NULL,
+		&output)
+{
+	Start();
+}
+
+
+void
+AudioNode::Fill(void* cookie, void* buffer, size_t size,
+	const media_raw_audio_format& format)
+{
+	PsgOutput* output = static_cast<PsgOutput*>(cookie);
+	if (output == NULL || buffer == NULL)
+		return;
+
+	// Both channels are sixteen bits, so a frame is four bytes.
+	const size_t frameSize = (format.channel_count * sizeof(int16_t));
+	if (frameSize == 0)
+		return;
+
+	output->Render(static_cast<int16_t*>(buffer), size / frameSize);
+}
 
 
 class GameView : public BView {
@@ -109,6 +183,7 @@ private:
 
 			PsgOutput	fPsg;
 			Game		fGame;
+			AudioNode*	fAudio;
 			BBitmap*	fBitmap;
 			KeyMatrix	fKeys;
 			BMessageRunner* fRunner;
@@ -120,6 +195,7 @@ GameView::GameView(BRect frame)
 	BView(frame, "game", B_FOLLOW_ALL, B_WILL_DRAW | B_FRAME_EVENTS
 								| B_PULSE_NEEDED),
 	fGame(&fPsg),
+	fAudio(NULL),
 	fBitmap(NULL),
 	fRunner(NULL)
 {
@@ -131,6 +207,7 @@ GameView::GameView(BRect frame)
 GameView::~GameView()
 {
 	delete fRunner;
+	delete fAudio;
 	delete fBitmap;
 }
 
@@ -161,6 +238,12 @@ GameView::AttachedToWindow()
 	BMessage tick(kMsgTick);
 	fRunner = new BMessageRunner(BMessenger(this), &tick,
 		kTickMicroseconds);
+
+	// The sound runs on its own clock, fed by the driver's register writes;
+	// it does not wait for the game's tick to ask for samples.
+	if (fAudio == NULL)
+		fAudio = new AudioNode(fPsg);
+
 	MakeFocus(true);
 }
 

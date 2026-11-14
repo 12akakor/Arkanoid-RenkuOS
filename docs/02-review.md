@@ -180,3 +180,40 @@ the target.
 `Game.cpp` is not linked into anything on this side (the platform build happens
 on the target), so `make test` now syntax-checks it: the constructor change is
 compiled on every run rather than there being nothing to notice if it rots.
+
+### The PSG, synthesised
+
+`src/game/PsgSynth.{h,cpp}` is the chip the registers were always meant for: three
+square-wave tone counters, the seventeen-bit noise shift register, the envelope
+generator with its sixteen shapes, and the mixer byte that decides what each
+channel hears. It knows nothing about Be, so it is built and tested here rather
+than on the target.
+
+`tests/psg_test.cpp` measures it instead of listening to it, which is the only
+thing possible without a sound card:
+
+    a fresh chip is silent                                 0
+    register 7 reads back                             0x38
+    channel A, period 254                             440.0 Hz
+    channel B, period 127                             880.5 Hz
+    channel C, period 508                             220.0 Hz
+    volume 0 is silence                                    0
+    noise makes a sound of its own                    10922
+    the attack envelope climbs to full                10922
+    the decay envelope starts loud, then falls to 0       0
+
+The frequencies come from counting sign changes in a second against
+`clock / (16 * period)`, so the counter and the clock agree by numbers rather
+than by intent.
+
+On the platform side, `PsgOutput` now holds the synth behind a `BLocker` (the
+driver writes from the game thread, the node renders from the media thread) and
+`AudioNode` is a `BSoundPlayer` at 44.1 kHz, sixteen bits, stereo, whose hook
+fills each buffer from the synth. So the chain is closed: game tick → register
+writes → samples → node.
+
+What is still unverified, and needs the target: that `BSoundPlayer` starts and
+keeps its rate, that the buffer size is not too small to avoid dropouts, and
+that the levels are right in a real mix — three channels summed and divided by
+three is a deliberate headroom choice, not a measurement of the chip's output
+stage.
