@@ -1778,3 +1778,29 @@ What is still open is the entry each command index resolves to. The offsets at
 0xB761: at least one of those is a stub that falls into another, and the mapping
 has to be measured — one command byte at a time, printing the first handler
 address the dispatcher jumps to — rather than read off the table.
+
+### The table, measured instead of read
+
+`tools/table_trace.cpp` runs each command through both dispatchers on the original
+and prints the first address each jumps to, which is the entry whatever the offsets
+say. The result is not what the port had:
+
+    index  DISPATCH_PRIMARY     DISPATCH_SECONDARY
+      0    0xB676               0xB6E1
+      1    0xB684               0xB71D
+      2    0xB698               0xB710
+      3    0xB6AE               0xB725
+      4    0xB6B9               0xB735
+      5    0xB6B7               0xB745
+      6    0xB6C6               0xB753
+      7    0xB6C4               0xB761
+
+The second column is what stream 2 runs, and it is off by one at the end: index 6
+is **0xB753**, the shared tail itself — "store E as the volume, or 0x40 into the
+mask, return" — while the preset command is index **7** at 0xB761. The port had
+those two the same way round as each other, and that is what the 0x40 bit was
+about: `E0` is index 6 and never touches the preset byte at all.
+
+With the entries corrected the sweep goes from 5352 of 5356 to 5432 of 5434, and
+what is left is the noise bit (0x08) on two codes at one tick, set by stream 1's
+index 7 at 0xB6C4. The budget in the Makefile is now two.

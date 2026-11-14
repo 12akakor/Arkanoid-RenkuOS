@@ -775,32 +775,15 @@ SoundPlayer::_Command(uint16_t stream, uint16_t bc, uint8_t command,
 			}
 
 			case 6:
-				// 0xB761: with bit 3 set the command is the mixer below.
-				if ((e & 0x08) != 0) {
-					uint8_t mixer = 0x04;
-					if (_MixerMask(stream, 0x20, mixer, bc, false))
-						return bc;
-					fState.Write(0xe5fc, 0);
-					fState.Write(0xe5f7, 0);
-					_Mask(0x40);
-					_Volume(0x40, mixer);
-					return bc;
-				}
-				// Without it the parameter becomes the effect preset; a
-				// non-zero one runs INIT_EFFECT and stores its volume, a zero
-				// one only clears the delayed-repeat status.
-				fState.Write(0xe5fc, e);
-				if (e != 0) {
-					uint8_t volume;
-					if (!_InitEffect(0xe5fc, volume))
-						return bc;
-					_Volume(0x40, volume);
-				} else {
-					fState.Write(0xe5f7, 0);
-				}
+				// table_trace puts index 6 at 0xB753, which is the shared tail
+				// itself: the whole handler is "store E as the volume, ask for
+				// the register". No preset is read and nothing is cleared.
+				_Volume(0x40, e);
+				_Mask(0x40);
 				return bc;
 
-			default: {
+			case 7: {
+				// 0xB761: with bit 3 set the command is the mixer below.
 				if ((e & 0x08) != 0) {
 					// ld de,0x2004.
 					uint8_t mixer = 0x04;

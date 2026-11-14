@@ -12,7 +12,7 @@ REF = src/ref/z80/Z80.cpp src/ref/video/Tms9918.cpp \
 	src/ref/msx1/Psg.cpp src/ref/msx1/Machine1.cpp
 GAME = src/game/Screen.cpp src/game/Renderer.cpp
 
-TOOLS = shot embed_rom mixer_trace effect_trace
+TOOLS = shot embed_rom mixer_trace effect_trace table_trace
 TESTS = rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
@@ -28,6 +28,9 @@ all: $(TOOLS)
 
 shot: tools/shot.cpp $(REF) src/ref/msx1/Machine1.h src/ref/video/Tms9918.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/shot.cpp $(REF)
+
+table_trace: tools/table_trace.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/table_trace.cpp $(REF)
 
 effect_trace: tools/effect_trace.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tools/effect_trace.cpp $(REF)
@@ -232,10 +235,10 @@ test: $(TESTS) build/arkanoid.rom
 	./isr_test build/arkanoid.rom 400
 	./advance_test build/arkanoid.rom 400
 # Every sound code, forty ticks each: the whole tick, commands included. Four
-	# ticks still differ, all one register-mask bit on two-voice codes, so the run
-	# is allowed four mismatches and no more; see docs/01-progress.md. Tighten the
-	# 4 to 0 when the mixer routine is settled.
-	./vm_test build/arkanoid.rom 40 256 4
+	# ticks still differ, the noise bit on two codes, so the run is allowed two
+	# mismatches and no more; see docs/01-progress.md. Tighten the 2 to 0 when the
+	# mask's clear is settled.
+	./vm_test build/arkanoid.rom 40 256 2
 
 check-title: rom shot
 	./shot build/arkanoid.rom 300 build/title.png -vram build/title.vram
