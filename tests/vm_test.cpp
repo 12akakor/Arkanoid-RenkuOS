@@ -193,9 +193,15 @@ main(int argc, char** argv)
 	// the last few are closed. Printing it keeps it visible: a fifth mismatch
 	// fails, and the count only ever goes down.
 	const int allow = argc > 4 ? atoi(argv[4]) : 0;
+	// A tick count of zero means "until the sound ends": both streams
+	// inactive, which is what the caller of PLAY_SOUND actually waits for.
+	const bool untilEnd = ticks == 0;
+	const int kCap = 20000;
 	int compared = 0;
 	int failed = 0;
 	int skipped = 0;
+	int ended = 0;
+	int capped = 0;
 
 	for (int code = 0; code < codes; code++) {
 		std::vector<uint8_t> start = base;
@@ -251,7 +257,16 @@ main(int argc, char** argv)
 		for (int reg = 0; reg < 16; reg++)
 			machine.GetPsg().Write(reg, startRegs[reg]);
 
-		for (int tick = 1; tick <= ticks; tick++) {
+		for (int tick = 1; ; tick++) {
+			if (!untilEnd && tick > ticks)
+				break;
+			if (untilEnd && tick > kCap) {
+				if (capped++ < 4)
+					printf("  code %d: still playing after %d ticks\n",
+						code, kCap);
+				break;
+			}
+
 			// A code whose stream pointer has left the cartridge is not a
 			// sound the port can be compared against: the Z80 is reading the
 			// BIOS in slot 0 or a slot with nothing in it, and the port has
@@ -319,6 +334,13 @@ main(int argc, char** argv)
 				failed++;
 				break;
 			}
+
+			// Both streams quiet: the sound is over.
+			if (untilEnd && machine.Ram()[0xE5D3] == 0
+					&& machine.Ram()[0xE5E9] == 0) {
+				ended++;
+				break;
+			}
 		}
 	}
 
@@ -327,6 +349,9 @@ main(int argc, char** argv)
 	if (skipped > 0)
 		printf(" (%d codes skipped: their sequence is outside the cartridge)",
 			skipped);
+	if (untilEnd)
+		printf(" (%d played to their end, %d still going after %d ticks)",
+			ended, capped, kCap);
 	printf("\n");
 	if (failed > allow) {
 		printf("%d mismatches, more than the %d allowed\n", failed, allow);

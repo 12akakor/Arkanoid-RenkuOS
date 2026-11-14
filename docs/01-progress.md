@@ -2077,3 +2077,27 @@ gone from the Makefile, and the numbers are exact:
 Fourteen codes leave the cartridge partway through, not two: the two that
 failed were simply the ones that left early enough to be caught. Nothing in
 `SoundPlayer` had to change for this, and nothing did.
+
+### Every sound, played to its end
+
+A tick count of zero now means "until the sound ends" — both streams inactive,
+which is what the game waits for. Forty ticks was always an arbitrary window;
+the natural end is not.
+
+    28 sounds (the whole table), to their end: 13653 ticks, all agree
+      the same by write journal:                13653 ticks, all agree
+    98 of 256 codes reach an end inside 20000 ticks; none loop forever
+
+The long run also reaches states forty ticks never did, and it found one
+difference the short sweep could not: code 76, tick 10555, where the original
+ORs `0xE0` into the register mask at `0xB75D` and the port ORs `0x10`. Every
+write before it in that call matches, so the two are in different command
+handlers with the same history up to that point — a difference in dispatch on a
+descriptor that is not a sound. Code 76 is not one of the 28, and it is not a
+code the game plays: the game's own sound numbers are `SOUND_NOP` (0xF8),
+`SOUND_PAUSE` (0x05), `SOUND_GAME_START_MUSIC` (0xC3), `SOUND_LEVEL_START_MUSIC`
+(0xC4), `SOUND_GAME_OVER` (0xC6), `SOUND_GAME_ENDING` (0xC7),
+`SOUND_DOH_LEVEL_STARTS` (0xC8), `SOUND_NOP_0` (0x00), plus whatever the game
+queues in `SOUNDS_BUFFER` — the table's own sounds. So this is left as it is and
+recorded: `make test` plays the 28 to their end with no budget at all, and the
+256-code sweep stays at forty ticks, where it agrees exactly.

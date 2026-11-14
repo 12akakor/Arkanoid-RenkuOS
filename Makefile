@@ -238,7 +238,6 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./soundplayer_test build/arkanoid.rom 300
 	./isr_test build/arkanoid.rom 400
 	./advance_test build/arkanoid.rom 400
-	./write_trace build/arkanoid.rom sweep 40 256 0
 # The same sweep again, one write journal at a time: every tick's writes to the
 # sound window compared in order, which names the instruction that differs.
 # Two ticks still differ, on two codes; see docs/01-progress.md.
@@ -246,7 +245,10 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	# whose stream pointer leaves the cartridge is skipped and counted, because
 	# there the Z80 reads the BIOS and the port has none; every code that stays
 	# has to agree exactly.
+	./vm_test build/arkanoid.rom 0 28 0
+	./write_trace build/arkanoid.rom sweep 0 28 0
 	./vm_test build/arkanoid.rom 40 256 0
+	./write_trace build/arkanoid.rom sweep 40 256 0
 
 check-title: rom shot
 	./shot build/arkanoid.rom 300 build/title.png -vram build/title.vram

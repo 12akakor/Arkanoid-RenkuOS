@@ -295,6 +295,8 @@ Sweep(Machine1& machine, const std::vector<uint8_t>& base, int ticks, int codes,
 	int failed = 0;
 	int skipped = 0;
 	int inDomain = 0;
+	int ended = 0;
+	int capped = 0;
 
 	for (int code = 0; code < codes; code++) {
 		std::vector<uint8_t> start = base;
@@ -344,7 +346,14 @@ Sweep(Machine1& machine, const std::vector<uint8_t>& base, int ticks, int codes,
 		for (int reg = 0; reg < 16; reg++)
 			machine.GetPsg().Write(reg, startRegs[reg]);
 
-		for (int tick = 1; tick <= ticks; tick++) {
+		const bool untilEnd = ticks == 0;
+		for (int tick = 1; ; tick++) {
+			if (!untilEnd && tick > ticks)
+				break;
+			if (untilEnd && tick > 20000) {
+				capped++;
+				break;
+			}
 			// A pointer that has left the cartridge reads the BIOS in slot 0
 			// or a slot with nothing in it, which the port does not have; the
 			// code is out of domain from this tick on.
@@ -381,8 +390,15 @@ Sweep(Machine1& machine, const std::vector<uint8_t>& base, int ticks, int codes,
 			compared++;
 
 			const int at = FirstDifference(original, port);
-			if (at < 0)
+			if (at < 0) {
+				// Both streams quiet: the sound is over.
+				if (untilEnd && machine.Ram()[0xE5D3] == 0
+						&& machine.Ram()[0xE5E9] == 0) {
+					ended++;
+					break;
+				}
 				continue;
+			}
 
 			// The state the call was handed, so the writes can be read
 			// against it: the pointer and the byte it aims at are the two
@@ -411,6 +427,9 @@ Sweep(Machine1& machine, const std::vector<uint8_t>& base, int ticks, int codes,
 	if (skipped > 0)
 		printf(" (%d of %d codes in domain, %d skipped: their sequence is"
 			" outside the cartridge)", inDomain, codes, skipped);
+	if (ticks == 0)
+		printf(" (%d played to their end, %d still going after 20000 ticks)",
+			ended, capped);
 	printf("\n");
 	if (failed > allow) {
 		printf("%d mismatches, more than the %d allowed\n", failed, allow);
