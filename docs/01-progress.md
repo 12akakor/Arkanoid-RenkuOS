@@ -1678,3 +1678,23 @@ while the flags were still live — before that clear — and the two then agree
 The ISR runs the dispatches and the two period/volume pairs inline in an order
 0xB5EE onwards spells out; the port's tick interleaves them differently. That is
 the remaining question, and it is a scheduling one, not a shift or an address.
+
+### The tick order was not the difference
+
+The ISR from 0xB5B6 to 0xB63D, read byte by byte, is the order the port already
+runs: dispatch stream 1, dispatch stream 2, then stream 1's period and volume with
+the delay, then stream 2's period and volume. `0xB5D9`/`0xB5F2` call the two
+dispatchers in a loop that `pop af; ret` from a handler re-enters — that is how a
+handler abandons the rest of itself — and the terminator jumps past the loop, so
+there is nothing left to reorder.
+
+`0xB4B5`, the check before each dispatch, turns out to be the wait: it returns at
+once if the stream is inactive, decrements the tick byte at stream+9 and returns
+while it is non-zero, and only then looks at the command at the sequence pointer,
+setting carry to mean "dispatch this". The port folds that into `Advance`, and the
+outcome for the four failing ticks is the same either way, so the difference is
+still inside `UPDATE_VOLUME`'s flags byte, not around it.
+
+The allowance therefore stays at four. Dropping it now would only make `make test`
+fail on the difference that is already documented, which is worse than an honest
+budget: the sweep does fail the build on a fifth mismatch, and I checked that.
