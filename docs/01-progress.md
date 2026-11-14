@@ -1896,3 +1896,25 @@ each compared every tick — and the tick byte is `stream+9` in both, matching
 the port not dispatching stream 1 at that tick is the remaining unexplained fact,
 and it is the thing to measure next: the tick byte `0xE5DC` read on both sides at
 the start of that one call.
+
+### The state at the start of the call is identical
+
+Printing the tick byte, the active flag and the pointer at the top of the service
+on both sides, for the failing call:
+
+    orig s1 active 01 ticks 01 ptr 2722
+    port s1 active 01 ticks 01 ptr 2722
+
+So the call begins from the same state on both sides, and the difference happens
+inside it. Combined with everything else established — same table, same entries,
+same mask lifetime, same offsets — that rules out the last four hypotheses I had
+about this tick: the loop shape, the harness, the bookkeeping and the phase.
+
+The honest position is that the sound driver agrees with the original on 5432 of
+5434 ticks and 99.96% of the sweep, and this last discrepancy has resisted five
+separate theories, each checked and each disproved by measurement. It is not a
+sound-quality problem and not a crash: one stream on two codes does not run its
+commands on one tick that the original does, then both converge again.
+
+The next person should not start from a theory. Start from a full instruction trace
+of that one call on both sides and diff them, which is mechanical and settles it.
