@@ -634,3 +634,31 @@ piece still compressed; their stream starts `00 04 11` and needs
 `DECOMPRESS_TILE_COLORS` (0x4389), which is not ported yet - so the data is
 located and verified, and the code that expands it is the next step before
 `DRAW_TITLE_SCREEN` itself.
+
+## Expanding the colour table
+
+`DECOMPRESS_TILE_COLORS` (0x4389) fills one third of the colour table: HL is the
+destination and the routine returns once HL's high byte reaches `H + 8`, so
+0x800 bytes. A byte with anything in its high nibble goes through as it is; a
+byte below 16 starts a run whose two count bytes are B and C (the low nibble
+first) followed by the two values to write alternately, one pair per step of
+B's countdown, with `dec c` / `jp p` around it the way the Z80 does it. The
+streams need only one turn of that outer loop, so a token's pairs are its count
+byte, and the port counts it that way.
+
+`TileColors::Decompress` is that routine, and `tests/tile_colors_test` checks it
+against the cartridge by calling the original on the reference machine with DE
+and HL set - for the title's colours (0x93F4) and the in-game ones (0x8584),
+each into all three thirds of the table - and comparing all of 0x2000-0x3800:
+
+    title colours    at 2000/2800/3000: 2048 bytes written, 0 differ
+    in-game colours  at 2000/2800/3000: 2050 bytes written, 0 differ
+
+The two extra bytes are the point of comparing that whole range: the cartridge
+looks at the limit only between tokens, so a run can end a couple of bytes past
+it, and the port does the same.
+
+One harness note worth keeping: calling a cartridge routine instruction by
+instruction after a bare `Reset()` does not work - the first instruction is not
+the one put in PC and the call never returns. Six hundred frames first, and the
+same call returns with HL and DE where the routine left them.
