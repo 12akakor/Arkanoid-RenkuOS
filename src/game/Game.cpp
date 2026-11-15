@@ -76,12 +76,16 @@ Game::_PlayLevel()
 
 	// UPDATE_OBJECTS (0x95F4), for the parts that are ported: three balls,
 	// each one step, then the hard bricks' and the aliens' own updates are
-	// still to come.
+	// still to come. The index is the step's own counter: it starts at zero,
+	// counts every ball whether it is active or not, and is left holding three
+	// when the loop ends (0x9872, 0x99C6).
+	fState.Write(GameRam::kBallLoopIndex, 0);
 	for (int ball = 0; ball < GameRam::kBallCount; ball++) {
 		if (fState.Read(GameRam::kBallTables
-				+ ball * GameRam::kBallTableLength + GameRam::kActive) == 0)
-			continue;
-		fMotion.UpdatePosition(ball);
+				+ ball * GameRam::kBallTableLength + GameRam::kActive) != 0)
+			fMotion.UpdatePosition(ball);
+		fState.Write(GameRam::kBallLoopIndex,
+			static_cast<uint8_t>(ball + 1));
 	}
 
 	// The scores, drawn where the original draws them during play.
@@ -109,8 +113,11 @@ Game::_UploadSprites()
 	// The entries that are shown are packed into the front of the area: the
 	// original advances the area's pointer only where it copies, so a sprite
 	// it skips does not take a slot.
+	// The original starts one entry below the parameters array (0xE0C9, the
+	// slot the falling capsule uses) and tests thirty-two entries from there,
+	// so the last sprite's parameters are never looked at.
 	int slot = 0;
-	for (int sprite = 0; sprite < kSpriteCount; sprite++) {
+	for (int sprite = -1; sprite < kSpriteCount - 1; sprite++) {
 		const uint16_t source = static_cast<uint16_t>(kSpriteParams
 			+ 4 * sprite);
 		if (fState.Read(source + GameRam::kSpritePattern) == 0)

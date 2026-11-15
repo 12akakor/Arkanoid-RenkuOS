@@ -451,11 +451,35 @@ What it has found so far, in the order it found them:
   copies an entry, so a sprite it skips leaves no slot behind. Numbering the
   shadow by sprite gives a different area as soon as one sprite is hidden.
 
-Where it stands: the first difference is now the second slot's X byte in the
-shadow (0xE192, original 0x00, port 0xC0). The shadow ordering is right, so what
-is left is the loop's own bookkeeping - the parameters pointer starts at
-`SPR_PARAMS_BASE - SPR_PARAMS_LEN` (0xE0C9) and steps four bytes before each
-test - and that is the next thing to read line by line rather than guess at.
+The loop's bookkeeping was the other thing it caught, and reading it settled it
+rather than a guess: the parameters pointer starts at `SPR_PARAMS_BASE -
+SPR_PARAMS_LEN`, which is 0xE0C9, the slot the *falling capsule* uses
+(`FALLING_CAPSULE_SPR_PARAMS`), it steps four bytes before each test, and it
+runs thirty-two times from there, so the last sprite's parameters are never
+looked at. The shadow is built from 0xE0C9 to 0xE145, packed.
+
+Reading it also turned up a plain bug behind the shadow difference:
+`Game::kHiddenY` was 209, and the cartridge parks a sprite at 192 (`ld (hl),
+192` at 0x4116) and tests for the same 192. With the wrong constant the port
+treated every parked entry as visible and copied it into the shadow. With 192
+the port's shadow is byte for byte the cartridge's on every frame the test
+runs.
+
+Where it stands: the shadow matches, and so does `BALL_LOOP_INDEX` (0xE2AC),
+the ball step's own counter, which the port now keeps the cartridge's way -
+zeroed, incremented once per ball whether the ball is active or not, left
+holding three when the three-ball loop ends. The first difference is now the
+aliens' tick counters: `ALIEN_TABLE_IDX_TICKS` (0xE4CA) and
+`ALIEN_DOOR_TICKS` (0xE515), which the cartridge's `UPDATE_OBJECTS` increments
+every frame and the port's frame does not touch. That is the alien step, and it
+is the next piece.
+
+One difference the test reports only on its first frame is the state it starts
+from rather than the frame itself: the machine arrives from the title screen, so
+its ball tables hold whatever the attract mode left there, and the first play
+frame takes the ball-lost path (0xE2AC is left at 1, one ball into the loop).
+That path is not ported. From the second frame on, the machine's own ball loop
+completes and agrees with the port's.
 
 Still unported, each named by its own routine: the title screen
 (`TRANSITION_START_LEVEL`, which increments `TITLE_TICKS` at 0xE53F),

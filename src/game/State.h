@@ -88,7 +88,8 @@ enum {
 enum {
 	kBallTables				= 0xE24E,	// BALL_TABLE1
 	kBallTableLength		= 20,
-	kBallCount				= 3
+	kBallCount				= 3,
+	kBallLoopIndex			= 0xE2AC	// BALL_LOOP_INDEX
 };
 
 

@@ -47,7 +47,7 @@ public:
 		kHeight = 192,
 		kSpriteParams = 0xE0CD,		// SPR_PARAMS_BASE
 		kSpriteCount = 32,
-		kHiddenY = 209			// where a sprite is put to hide it
+		kHiddenY = 192			// where a sprite is put to hide it (0x4116)
 	};
 
 	// The platform's sound output, if it has one. Every PSG write the driver

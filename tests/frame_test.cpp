@@ -144,6 +144,24 @@ main(int argc, char** argv)
 				printf("  frame %d: %04x %-18s original %02x, port %02x\n",
 					frame, address, Name(address), machine.Ram()[address],
 					state.Read(address));
+				printf("    parameters 0xE0C9..0xE0DD\n");
+				for (uint16_t a = 0xE0C9; a <= 0xE0DD; a += 4) {
+					printf("      %04x  original %02x %02x %02x %02x"
+						"   port %02x %02x %02x %02x\n", a,
+						machine.Ram()[a], machine.Ram()[a + 1],
+						machine.Ram()[a + 2], machine.Ram()[a + 3],
+						state.Read(a), state.Read(a + 1),
+						state.Read(a + 2), state.Read(a + 3));
+				}
+				printf("    shadow 0xE18D..0xE19C\n");
+				for (uint16_t a = 0xE18D; a <= 0xE195; a += 4) {
+					printf("      %04x  original %02x %02x %02x %02x"
+						"   port %02x %02x %02x %02x\n", a,
+						machine.Ram()[a], machine.Ram()[a + 1],
+						machine.Ram()[a + 2], machine.Ram()[a + 3],
+						state.Read(a), state.Read(a + 1),
+						state.Read(a + 2), state.Read(a + 3));
+				}
 			}
 			differed++;
 			break;
