@@ -196,8 +196,11 @@ enum {
 	kVausIdxActionState		= 0,		// VAUS_TABLE_IDX_ACTION_STATE
 	kVausIdxResizingStep	= 1,		// VAUS_TABLE_IDX_RESIZING_STEP
 	kVausIdxLaseringStep	= 2,		// VAUS_TABLE_IDX_LASERING_STEP
+	kVausIdxDestructionStep1 = 3,		// VAUS_TABLE_IDX_DESTRUCTION_STEP1
+	kVausIdxDestructionStep2 = 4,		// VAUS_TABLE_IDX_DESTRUCTION_STEP2
 	kVausIdxResizing		= 5,		// VAUS_TABLE_IDX_RESIZING
 	kVausIdxHasLaser		= 6,		// VAUS_TABLE_IDX_HAS_LASER
+	kVausActionStateWait	= 0,		// VAUS_ACTION_STATE_WAIT_READY
 	kVausActionStateKeep	= 1,		// VAUS_ACTION_STATE_KEEP
 	kVausOldX				= 0xE54A,	// the byte before VAUS_X
 	kBallXDemo				= 0xE0F6,	// BALL_X_DEMO

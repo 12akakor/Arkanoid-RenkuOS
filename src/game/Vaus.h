@@ -10,13 +10,11 @@
 // lasering step, two counters for its destruction, whether it is enlarged,
 // whether it has lasers, and two steps for its passage through the portal.
 //
-// This is EXECUTE_VAUS_ACTION (0x68C4), with one honest gap: the states from
-// enlarging on - enlarging, shrinking, lasering, un-lasering, exploding and the
-// crossing of the portal - are not ported yet. They are read, but the sprites
-// they build are four different layouts each and none of them has been checked
-// against the original, so the state is left where it is instead of being
-// guessed. Waiting and following the controls, which is what the game does for
-// all but a few seconds of a round, is complete.
+// This is EXECUTE_VAUS_ACTION (0x68C4). Waiting, following the controls and
+// being destroyed are ported and checked against the original frame by frame;
+// enlarging, shrinking, lasering, un-lasering and the crossing of the portal
+// are not, and the state is left where it is for those instead of being
+// guessed.
 
 
 #ifndef ARKANOID_VAUS_H
@@ -41,6 +39,11 @@ public:
 
 	// LASERS_STEP (0x69BA): not ported yet.
 private:
+	// VAUS_ACTION_STATE_EXPLODING (0x6E0E, vaus_destroyed): the Vaus falls
+	// apart in four steps of twelve frames, and the last one sends the game on
+	// to reload the level.
+	void				_Destroy();
+	uint16_t			_Sprite(int index);
 	void				_PutSprites(uint8_t x);
 	uint8_t				_ReadPaddle();
 	void				_Store(uint8_t x);

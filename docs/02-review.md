@@ -523,3 +523,41 @@ level through `NEXT_OR_SAME_LEVEL`. Neither the destruction animation in
 lost ball in the port leaves the Vaus in the exploding state and the count of
 lives unchanged: the decision matches the cartridge, the consequence after it
 does not exist yet.
+
+## The Vaus falling apart
+
+A lost ball sets the Vaus to exploding and stops there. What follows in the
+cartridge is `vaus_destroyed` (0x6E0E), the exploding branch of
+`EXECUTE_VAUS_ACTION`: four steps of twelve frames each, using seven sprites -
+the four the Vaus is made of and three more for the debris.
+
+* The first step lays the pieces out: the second and third sprites are put
+  sixteen and thirty-two pixels right of the first, colours 8, 14, 8 and 0, and
+  patterns 32, 36, 40 and 1. Three of those writes are repeated immediately
+  afterwards in the cartridge, which the port does too.
+* The second step is the only one that moves anything, and it does so every
+  frame: the right-hand three drift eight pixels left, and the three sprites
+  above are placed from the Vaus's left sprite eight, twenty-four and thirty-two
+  pixels to its right and sixteen pixels up, painted grey, grey and red.
+* The third and fourth steps of the twelve-frame counter only swap patterns,
+  from `VAUS_DESTROYED_PATTERNS` (0x7019): the third step uses the debris list
+  at 0x7032, the second and fourth the pieces list at 0x702B.
+* The end of the fourth puts the Vaus back to waiting, hides the seven sprites,
+  zeroes `VAUS_X2`, and sets both `LEVEL_TRANSITION_TYPE` and
+  `GAME_TRANSITION_ACTION` to 2 - the same level, again. That is where
+  `ACTION_LIFE_LOST` (0x7C07) lives, so the life is taken there and not here.
+
+`tests/vaus_destroy_test` runs the whole animation against the machine from
+identical memory. The cartridge ends it after 49 frames and the port after 48,
+and the reason is a frame-boundary artefact rather than a difference in the
+animation: the cartridge's seven-pattern loop can be cut by the end of the
+frame, leaving the rest of the patterns to the next frame, so a frame-by-frame
+comparison shows a partial list in the machine (four patterns applied at one
+step, two at another) while the port applies all seven. Comparing the settled
+state - the cartridge's last frame against the port's, one frame earlier -
+every byte of the seven sprites, the ten bytes of the Vaus table, `VAUS_X2` and
+both transition variables agree.
+
+The life itself is still not taken: the transition the animation ends with goes
+to `NEXT_OR_SAME_LEVEL`, and that level reload is not ported. The port now sets
+the same transition and stops, which is where the frame comparison also stops.
