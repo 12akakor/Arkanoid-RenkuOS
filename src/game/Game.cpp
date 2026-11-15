@@ -6,6 +6,7 @@
 
 #include "Game.h"
 #include "VdpBlocks.h"
+#include "TitleScreen.h"
 
 
 Game::Game(SoundPlayer::PsgSink* sink)
@@ -46,10 +47,20 @@ Game::Tick(const KeyMatrix& keys, uint16_t paddleCount, uint8_t paddleStatus)
 	_UploadSprites();
 
 	switch (fState.Read(GameRam::kTransitionAction)) {
-		case 0:
-			// TRANSITION_START_LEVEL: the title screen and the story.
-			// Not ported yet, so the field stays as it is.
+		case 0: {
+			// TRANSITION_START_LEVEL: the title screen, and the level the
+			// game starts on.
+			const TitleScreen::Result title = TitleScreen::Tick(fState, fScreen);
+			if (title.playSound)
+				fSoundPlayer.Play();
+			if (title.frames > 0) {
+				fDelay = static_cast<uint16_t>(title.frames);
+				fPending = kPendingNone;
+			}
+			if (title.startLevel)
+				_StartLevel();
 			break;
+		}
 		case 1:
 			_PlayLevel();
 			break;
@@ -168,6 +179,38 @@ Game::_UploadSprites()
 // The round's start, in the original's order (0x4DEB onwards): the colours, the
 // round's number, the map, the field, and the field copied to video memory. The
 // lives, the sprite patterns and the music that go in between are not ported.
+// TRANSITION_START_LEVEL's target (0x4D09): the level's memory cleared, the
+// screen cleared, the scores and "ROUND n" drawn, and the cartridge's 48-frame
+// wait - unless the game is starting a level from a title, which waits for no
+// one and goes straight on.
+void
+Game::_StartLevel()
+{
+	if (TitleScreen::StartLevel(fState, fScreen)) {
+		fDelay = 48;
+		fPending = kPendingStartLevel;
+		return;
+	}
+	_LevelReloadDone();
+}
+
+
+// The tail of 0x4D09: the play level's action, the in-game graphics into the
+// VDP, and the level itself.
+void
+Game::_LevelReloadDone()
+{
+	fState.Write(GameRam::kTransitionAction, 1);
+
+	VdpBlocks::WritePatternTable(kRomImage + (GameRam::kInGameTiles - kRomBase),
+		fScreen);
+	VdpBlocks::FillColorsAllScreen(
+		kRomImage + (GameRam::kInGameColors - kRomBase), fScreen);
+
+	LoadLevel();
+}
+
+
 void
 Game::LoadLevel()
 {
@@ -309,6 +352,9 @@ Game::_ResumePending()
 	const uint8_t pending = fPending;
 	fPending = kPendingNone;
 	switch (pending) {
+		case kPendingStartLevel:
+			_LevelReloadDone();
+			break;
 		case kPendingLifeLost:
 			_LifeLostDone();
 			break;

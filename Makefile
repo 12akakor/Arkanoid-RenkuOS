@@ -20,7 +20,8 @@ TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	levels_test lives_test soundplayer_test sound_codes_test isr_test \
 	isr_trace isr_multi advance_test vm_test game_session_test frame_test \
 	ball_out_test vaus_destroy_test life_lost_test title_data_test \
-	tile_colors_test title_graphics_test title_screen_test
+	tile_colors_test title_graphics_test title_screen_test \
+	title_loop_test
 
 # Every binary depends on every game header: a changed constant in State.h has
 # to rebuild the tests, or a stale binary silently passes.
@@ -81,6 +82,14 @@ title_screen_test: tests/title_screen_test.cpp src/game/Screen.cpp \
 		src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp \
 		src/game/TitleScreen.cpp src/game/RomImage.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/title_screen_test.cpp \
+		src/game/Screen.cpp src/game/State.cpp src/game/TileColors.cpp \
+		src/game/VdpBlocks.cpp src/game/TitleScreen.cpp \
+		src/game/RomImage.cpp $(REF)
+
+title_loop_test: tests/title_loop_test.cpp src/game/Screen.cpp \
+		src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp \
+		src/game/TitleScreen.cpp src/game/RomImage.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/title_loop_test.cpp \
 		src/game/Screen.cpp src/game/State.cpp src/game/TileColors.cpp \
 		src/game/VdpBlocks.cpp src/game/TitleScreen.cpp \
 		src/game/RomImage.cpp $(REF)
@@ -238,29 +247,29 @@ capsule_test: tests/capsule_test.cpp src/game/Capsules.cpp \
 		src/game/Capsules.cpp src/game/Random.cpp src/game/Screen.cpp \
 		src/game/State.cpp src/game/RomImage.cpp $(REF)
 
-game_session_test: tests/game_session_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+game_session_test: tests/game_session_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
 		$(REF)
-	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/game_session_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
-		$(REF)
-
-frame_test: tests/frame_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
-		$(REF)
-	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/frame_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/game_session_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
 		$(REF)
 
-ball_out_test: tests/ball_out_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+frame_test: tests/frame_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
 		$(REF)
-	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/ball_out_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
-		$(REF)
-
-vaus_destroy_test: tests/vaus_destroy_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
-		$(REF)
-	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/vaus_destroy_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/frame_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
 		$(REF)
 
-life_lost_test: tests/life_lost_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+ball_out_test: tests/ball_out_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
 		$(REF)
-	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/life_lost_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/ball_out_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+		$(REF)
+
+vaus_destroy_test: tests/vaus_destroy_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+		$(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/vaus_destroy_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+		$(REF)
+
+life_lost_test: tests/life_lost_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
+		$(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/life_lost_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp \
 		$(REF)
 
 sound_codes_test: tests/sound_codes_test.cpp src/game/Sound.cpp \
@@ -320,6 +329,7 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./tile_colors_test build/arkanoid.rom
 	./title_graphics_test build/arkanoid.rom
 	./title_screen_test build/arkanoid.rom
+	./title_loop_test build/arkanoid.rom
 	./advance_test build/arkanoid.rom 400
 # The same sweep again, one write journal at a time: every tick's writes to the
 # sound window compared in order, which names the instruction that differs.

@@ -69,6 +69,8 @@ public:
 	// the pair of calls the original makes as it starts a round
 	// (ADD_BRICKS_TO_TILEMAP then DRAW_BACKGROUND_TILEMAP).
 	void				LoadLevel();
+	void				_StartLevel();
+	void				_LevelReloadDone();
 
 	// The picture, one colour index per pixel, and its palette.
 	const uint8_t*		Frame(bool spriteLimit = false);
@@ -94,7 +96,8 @@ private:
 	enum {					// what to do when fDelay runs out
 		kPendingNone = 0,
 		kPendingLifeLost,
-		kPendingGameOverClear
+		kPendingGameOverClear,
+		kPendingStartLevel
 	};
 
 	void				_UploadSprites();

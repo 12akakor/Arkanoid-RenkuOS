@@ -90,7 +90,17 @@ enum {
 	kInDemo					= 0xE00D,	// IN_DEMO
 	kTitleTicks				= 0xE53F,	// TITLE_TICKS
 	kBorderColor			= 0xF3EB,	// BDRCLR
-	kScoreHiScoreStr		= 0x549E	// SCORE_HI_SCORE_STR
+	kScoreHiScoreStr		= 0x549E,	// SCORE_HI_SCORE_STR
+
+	// The title screen's own flow: the story, the demo, the start.
+	kDemoLevel				= 0xE000,	// DEMO_LEVEL
+	kNextLifeScore			= 0xE01F,	// next life at 20000
+	kGameStartStr			= 0x54CC,	// GAME_START_STR
+	kRoundStr				= 0x5144,	// ROUND_STR
+	kDemoLevelsTable		= 0x4CC2,	// DEMO_LEVELS_TABLE
+	kInGameTiles			= 0x7D84,	// IN_GAME_TILES
+	kInGameColors			= 0x8584,	// IN_GAME_COLORS
+	kSoundGameStartMusic	= 0xC3		// SOUND_GAME_START_MUSIC
 };
 
 

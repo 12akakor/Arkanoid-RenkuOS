@@ -28,6 +28,26 @@ void DrawScoreNumbers(State& state, Screen& screen);
 // sprite in the logo's grid, and the screen waiting for START.
 void Draw(State& state, Screen& screen);
 
+// DRAW_ROUND_MESSAGE (0x5101): "ROUND " and the level number, as the level
+// start draws it.
+void DrawRoundMessage(State& state, Screen& screen);
+
+// DRAW_TITLE_SCREEN's whole dispatch (0x4B8A): what the title screen does on a
+// frame, whichever of its states it is in.
+struct Result {
+	bool	startLevel;	// the level reload at 0x4D09 has to run
+	bool	playSound;	// SOUND_NUMBER wants playing
+	int		frames;		// a wait this routine spends inside itself
+};
+
+Result Tick(State& state, Screen& screen);
+
+// The level reload's own start (0x4D09, up to the wait): the level's memory
+// cleared - or the input block, when the level stays as it is - the screen
+// cleared, and the scores and "ROUND n" drawn when a game is being played.
+// Returns true when the cartridge's 48-frame wait comes next.
+bool StartLevel(State& state, Screen& screen);
+
 }
 
 

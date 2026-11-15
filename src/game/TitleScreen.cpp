@@ -152,3 +152,171 @@ TitleScreen::Draw(State& state, Screen& screen)
 
 	state.Write(GameRam::kTitleTicks, 0);
 }
+
+
+// DRAW_ROUND_MESSAGE (0x5101): "ROUND " at 0x194C and the display level - one
+// more than LEVEL_DISPLAY, in BCD - at 0x1952. A zero in the top digit leaves
+// only the bottom one.
+void
+TitleScreen::DrawRoundMessage(State& state, Screen& screen)
+{
+	screen.CopyToVram(static_cast<uint16_t>(screen.NameBase() + 0x14C),
+		Cart(GameRam::kRoundStr), 5);
+
+	// add a,1 / daa, done a nibble at a time.
+	uint8_t low = static_cast<uint8_t>((state.Read(GameRam::kLevelDisplay)
+		& 0x0F) + 1);
+	uint8_t high = static_cast<uint8_t>(state.Read(GameRam::kLevelDisplay) >> 4);
+	if (low > 9) {
+		low = 0;
+		high++;
+	}
+	const uint8_t value = static_cast<uint8_t>((high << 4) | low);
+
+	const uint16_t address = static_cast<uint16_t>(screen.NameBase() + 0x152);
+	if (high != 0)
+		screen.SetVram(address, static_cast<uint8_t>('0' + high));
+	screen.SetVram(static_cast<uint16_t>(address + (high != 0 ? 1 : 0)),
+		static_cast<uint8_t>('0' + low));
+}
+
+
+// TRANSITION_START_LEVEL's target, 0x4D09 to 0x4D46.
+bool
+TitleScreen::StartLevel(State& state, Screen& screen)
+{
+	if (state.Read(GameRam::kLevelTransitionType)
+			!= GameRam::kLevelTransitionSame) {
+		for (int i = 0; i < GameRam::kBrickMapLength; i++)
+			state.Write(static_cast<uint16_t>(GameRam::kBrickMap + i), 0);
+	} else {
+		for (int i = 0; i < 0x4F5; i++)
+			state.Write(static_cast<uint16_t>(GameRam::kControls + i), 0);
+	}
+
+	VdpBlocks::ClearScreen(state, screen);
+
+	if (state.Read(GameRam::kGameState) == 0)
+		return false;
+
+	DrawUpScores(state, screen);
+	DrawRoundMessage(state, screen);
+	return true;
+}
+
+
+namespace {
+
+// The waiting state, TITLE_SCREEN_ACTION_WAIT_IN_TITLE_SCREEN (0x4C48).
+void
+Wait(State& state, Screen& screen, TitleScreen::Result& result)
+{
+	// A paddle's button, or the space bar when there is no paddle.
+	const bool pressed = state.Read(GameRam::kUseVausPaddle) != 0
+		? (state.Read(static_cast<uint16_t>(GameRam::kPaddleStatus + 1))
+			& 0x02) != 0
+		: (state.Read(GameRam::kControls) & 0x10) != 0;
+
+	if (pressed) {
+		state.Write(GameRam::kBrickHitYPixel, 2);	// TITLE_SCREEN_ACTION_START_GAME
+		screen.CopyToVram(static_cast<uint16_t>(screen.NameBase() + 0x1A8),
+			Cart(GameRam::kGameStartStr), 17);
+		state.Write(GameRam::kSoundNumber, GameRam::kSoundGameStartMusic);
+		result.playSound = true;
+		result.frames = 256;
+		return;
+	}
+
+	const uint16_t ticks = static_cast<uint16_t>(state.Read(GameRam::kTitleTicks)
+		| (state.Read(static_cast<uint16_t>(GameRam::kTitleTicks + 1)) << 8))
+		+ 1;
+	state.Write(GameRam::kTitleTicks, static_cast<uint8_t>(ticks & 0xFF));
+	state.Write(static_cast<uint16_t>(GameRam::kTitleTicks + 1),
+		static_cast<uint8_t>(ticks >> 8));
+
+	// Ten seconds of no one pressing anything: the story, from the demo's side.
+	if (ticks == 480) {
+		state.Write(GameRam::kBrickHitYPixel, 5);	// TITLE_SCREEN_ACTION_DEMO
+		state.Write(GameRam::kInDemo, 1);
+		VdpBlocks::ClearScreen(state, screen);
+	}
+}
+
+
+// TITLE_SCREEN_ACTION_START_GAME (0x4CC6): everything cleared, two lives - 240
+// with the cheat - and the level the game starts on.
+void
+StartGame(State& state)
+{
+	state.Write(GameRam::kGameState, 1);
+
+	// SCORE_BCD and the 1439 bytes after it.
+	for (int i = 0; i < 1439; i++)
+		state.Write(static_cast<uint16_t>(GameRam::kScoreBcd + i), 0);
+
+	state.Write(GameRam::kNextLifeScore, 0x20);
+
+	uint8_t lives = 2;
+	if (state.Read(GameRam::kCheat1Activated) != 0)
+		lives = 240;
+	state.Write(GameRam::kLives, lives);
+
+	state.Write(GameRam::kCheat1Activated, 0);
+	state.Write(static_cast<uint16_t>(GameRam::kCheat1Activated + 1), 0);
+
+	if (state.Read(GameRam::kCheat2Activated) != 0) {
+		state.Write(GameRam::kLevel, state.Read(GameRam::kCheat2Level));
+		state.Write(static_cast<uint16_t>(GameRam::kLevel + 1),
+			state.Read(static_cast<uint16_t>(GameRam::kCheat2Level + 1)));
+	}
+	state.Write(GameRam::kCheat2Activated, 0);
+	state.Write(static_cast<uint16_t>(GameRam::kCheat2Activated + 1), 0);
+}
+
+
+// TITLE_SCREEN_ACTION_GOTO_TITLE_SCREEN (0x4CA2): the demo's next level out of
+// the four, and the game back at the title's side of the transition.
+void
+StartDemo(State& state)
+{
+	state.Write(GameRam::kGameState, 0);
+
+	const uint8_t demo = static_cast<uint8_t>(
+		(state.Read(GameRam::kDemoLevel) + 1) & 3);
+	state.Write(GameRam::kDemoLevel, demo);
+	state.Write(GameRam::kLevel, Cart(GameRam::kDemoLevelsTable)[demo]);
+	state.Write(GameRam::kLevelTransitionType, 0);
+}
+
+}
+
+
+// DRAW_TITLE_SCREEN (0x4B8A) as the game calls it on a frame.
+TitleScreen::Result
+TitleScreen::Tick(State& state, Screen& screen)
+{
+	Result result = { false, false, 0 };
+
+	// A game in progress reloads a level (0x4D09) and the demo shows its story
+	// (0x4EDD); neither is this screen's business.
+	if (state.Read(GameRam::kGameState) != 0 || state.Read(GameRam::kInDemo) != 0)
+		return result;
+
+	switch (state.Read(GameRam::kBrickHitYPixel)) {
+		case 1:
+			Wait(state, screen, result);
+			break;
+		case 2:
+			StartGame(state);
+			result.startLevel = true;
+			break;
+		case 5:
+			StartDemo(state);
+			result.startLevel = true;
+			break;
+		default:
+			Draw(state, screen);
+			break;
+	}
+	return result;
+}

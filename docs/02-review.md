@@ -729,3 +729,46 @@ The name table being empty of differences is the whole title screen: scores,
 logo, all four strings and Taito's logo, at the addresses the cartridge puts
 them. `CLEAR_SCREEN` moved into `VdpBlocks` on the way, so the game's own level
 start and this drawing share the one copy of it.
+
+## The title screen's loop
+
+`DRAW_TITLE_SCREEN` is also the title screen's state machine, and it reads its
+state out of `BRICK_HIT_Y_PIXEL` - the variable a brick's row lives in during
+play. `TitleScreen::Tick` is that whole dispatch: one sprite of the four states
+per frame,
+
+- **1, waiting.** A paddle's button if `USE_VAUS_PADDLE` says so, the space bar
+  otherwise. With no press, `TITLE_TICKS` - a word at 0xE53F - goes up by one,
+  and at 480 the screen goes to the demo: action 5, `IN_DEMO = 1`, and the
+  screen cleared.
+- **2, START_GAME.** `GAME_STATE = 1`, the 1439 bytes from `SCORE_BCD` cleared,
+  0x20 into the next life's score, two lives - 240 when cheat 1 is on - both
+  cheats off, and the level cheat 2 asked for. Then 0x4D09.
+- **5, the demo's entry.** `GAME_STATE = 0`, `DEMO_LEVEL` advanced through the
+  four in `DEMO_LEVELS_TABLE` (12, 3, 6, 1), `LEVEL` from it, the transition set
+  to next. Then 0x4D09 too.
+- **anything else**, the drawing.
+
+The press is handled where the cartridge handles it: "GAME START" written over
+"PRESS START BUTTON", `SOUND_GAME_START_MUSIC` (0xC3) played, and the 256-frame
+wait the routine spends inside itself - which the port spends as `fDelay`, the
+same way as the other waits.
+
+`TitleScreen::StartLevel` is 0x4D09 up to that wait: the level's memory cleared
+unless the level stays as it is (and then the input block instead), the screen
+cleared, and - only when a game is being played - the scores and "ROUND n",
+which is `LEVEL_DISPLAY + 1` in BCD with a leading zero left off. The port then
+waits 48 frames and loads the level from the in-game graphics, which is where
+the level start already was.
+
+`tests/title_loop_test` runs each of those against the cartridge:
+
+    waiting counts ticks            RAM 0xe53c-0xe540 equal
+    480 ticks go to the demo        RAM and cleared screen equal
+    START shows GAME START          RAM, sound number and 0x19a8 equal
+    START clears the game's memory  0xe000-0xe600 equal
+    the demo picks its next level   0xe000-0xe002, level, transition equal
+    the level reload's start        brick map and scores/round screen equal
+
+The last one stops the cartridge at 0x4D40, the instruction before its own wait,
+so the wait itself is not what is being compared.
