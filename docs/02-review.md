@@ -907,3 +907,37 @@ back to the title and the title's variables are cleared. That is ported, and the
 numbers above are what it gives: the port ends its demo at a different point in
 the sequence than the cartridge does, and the demo level it next picks diverges
 with it.
+
+## Where the demo's end actually goes wrong
+
+A frame-by-frame trace of `DEMO_TIMEOUT` (0xE5AD) with the transition action
+beside it says what the map only hinted at:
+
+    at    0: timeout m 2880 p 2880, action m 0 p 0
+    at 1000: timeout m 2880 p 2880, action m 0 p 0
+    at 1200: timeout m  100 p    0, action m 1 p 0
+    at 2200: timeout m 1100 p   10, action m 1 p 1
+    at 2400: timeout m 1300 p    0, action m 1 p 0
+    at 2600: timeout m 1500 p    0, action m 1 p 0
+
+Both start at the title with 2880 left over from an earlier demo, and the
+machine restarts its count when its demo level actually starts (frame ~1100).
+The port eventually gets there too - 10 frames of play at frame ~2200 - and is
+back at the title by 2400 with the counter cleared. So the port's demo is not
+ending late or early by a constant; it is ending *immediately*: the ball is lost
+within about ten frames of being released.
+
+That is because the release is the only part of it that is ported. The
+cartridge's demo keeps the ball alive with two things the port does not have:
+
+- the ball's own table entry, which carries its position and slope out of the
+  level start - the port's copy still has the ball parked at 192, so the moment
+  it is made active it is already out of the field;
+- the demo's Vaus, which follows the ball: at 0x6916 the cartridge sets
+  `VAUS_X2 = BALL_X_DEMO - 16` every frame in the demo, so the ball comes back
+  off it.
+
+Those two are the next piece: the ball's start position and slope at release,
+and the Vaus following `BALL_X_DEMO` when `GAME_STATE` is zero. Until they are
+in, the demo dies on its first frame of play, and the timeout it is supposed to
+reach after 2880 frames is never seen.
