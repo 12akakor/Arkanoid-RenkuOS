@@ -810,3 +810,39 @@ What that does not cover is the demo being *played*: the level runs through the
 same play path as a real game, and the way it ends back at the title is the life
 lost path's `GAME_STATE == 0` branch, both already ported, but neither is
 compared frame by frame here.
+
+## A demo game, frame by frame
+
+`tests/demo_game_test` is the measurement the demo needed: the reference machine
+plays by itself from a cold start, and the test watches it - 1273 frames of boot,
+title, the 480 ticks, the story typing itself out - until the demo level is on
+the screen (level 3 that run). Then the port's memory and VRAM are copied from
+the machine and both run 1200 frames with nothing pressed, compared frame by
+frame.
+
+It does not agree, and the test says where. Three areas are excluded first, each
+for a reason the code gives:
+
+- 0xE0C0-0xE0C9, the raw keyboard and paddle reads: the tests feed input through
+  the key matrix argument, not through the machine's PIA.
+- 0xE0C9-0xE20D, the sprite parameters and the port's shadow of them at 0xE18D:
+  the port fills them at the head of a frame, the cartridge during the frame, so
+  they are one frame apart; and the shadow is the port's own, not the
+  cartridge's memory.
+- the aliens' tick counters, which the port is not driving yet (the same
+  exclusion `life_lost_test` and `frame_test` make).
+
+With those out, the first frame that differs is the first frame:
+
+    frame 0: ram e2ac original 00, port 03
+
+0xE2AC is `BALL_LOOP_INDEX`, and the port keeps it at 3 where the cartridge
+leaves it at 0. That is the next thing to look at: either the port's ball loop
+index means something different from the cartridge's, or the ball loop never
+leaves its first ball in the port. Everything after it is masked by the same
+counter, because every frame reports that same address first.
+
+So the honest state of the demo: it starts, from the right level, at the right
+frame - and its play diverges from the first frame. This is a diagnostic, not a
+passing check, and it is not in `make test`'s run list, the same way `frame_test`
+isn't.

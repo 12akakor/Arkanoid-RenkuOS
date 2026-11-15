@@ -94,6 +94,25 @@ title_loop_test: tests/title_loop_test.cpp src/game/Screen.cpp \
 		src/game/VdpBlocks.cpp src/game/TitleScreen.cpp \
 		src/game/RomImage.cpp $(REF)
 
+demo_game_test: tests/demo_game_test.cpp src/game/Aliens.cpp \
+		src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp \
+		src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp \
+		src/game/Collision.cpp src/game/Game.cpp src/game/TitleScreen.cpp \
+		src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp \
+		src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp \
+		src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp \
+		src/game/SoundPlayer.cpp src/game/State.cpp src/game/TileColors.cpp \
+		src/game/VdpBlocks.cpp src/game/Vaus.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/demo_game_test.cpp \
+		src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp \
+		src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp \
+		src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp \
+		src/game/TitleScreen.cpp src/game/Hud.cpp src/game/Input.cpp \
+		src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp \
+		src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp \
+		src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp \
+		src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/Vaus.cpp $(REF)
+
 rom_test: tests/rom_test.cpp src/game/RomImage.cpp src/game/RomImage.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/rom_test.cpp src/game/RomImage.cpp
 
