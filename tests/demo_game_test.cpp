@@ -40,7 +40,7 @@ namespace {
 
 const uint16_t kComparedFrom = 0xE000;
 const uint16_t kComparedTo = 0xE5C0;
-const int kMaxFrames = 2400;
+const int kMaxFrames = 4000;
 const int kReported = 12;
 
 // Aliens keep their own tick counters, which the port is not driving yet.
@@ -137,6 +137,9 @@ main(int argc, char** argv)
 
 	KeyMatrix keys = {};
 	int indexDiffers = 0;
+	uint16_t addresses[16] = {};
+	int addressCounts[16] = {};
+	int addressKinds = 0;
 	int differingFrames = 0;
 	int firstFrame = -1;
 	int reported = 0;
@@ -145,17 +148,13 @@ main(int argc, char** argv)
 	uint8_t firstPort = 0;
 
 	for (int tick = 0; tick < kMaxFrames; tick++) {
-		machine.RunFrame();
+		// The machine's handler for a frame runs at its VBlank: ticking the
+		// port first puts both sides at the same point in the frame.
 		game.Tick(keys, 100, 0);
+		machine.RunFrame();
 
 		if (machine.Ram()[0xE2AC] != state.Read(0xE2AC))
 			indexDiffers++;
-		if (tick == 0 || tick == 5 || tick == 40 || tick == 120 || tick == 600) {
-			printf("  at %4d: index machine %d port %d, ball1 machine %d port %d\n",
-				tick, machine.Ram()[0xE2AC], state.Read(0xE2AC),
-				machine.Ram()[0xE24E],
-				state.Read(GameRam::kBallTables + GameRam::kActive));
-		}
 
 		uint16_t address = kComparedFrom;
 		for (; address < kComparedTo; address++) {
@@ -179,6 +178,22 @@ main(int argc, char** argv)
 		if (!ramDiffers && !vramDiffers)
 			continue;
 
+		{
+			const uint16_t found = ramDiffers ? address : vramAddress;
+			int slot = 0;
+			for (; slot < addressKinds; slot++) {
+				if (addresses[slot] == found)
+					break;
+			}
+			if (slot == addressKinds && addressKinds < 16) {
+				addresses[addressKinds] = found;
+				addressCounts[addressKinds] = 0;
+				addressKinds++;
+			}
+			if (slot < 16)
+				addressCounts[slot]++;
+		}
+
 		if (firstFrame < 0) {
 			firstFrame = tick;
 			firstAddress = ramDiffers ? address : vramAddress;
@@ -201,6 +216,9 @@ main(int argc, char** argv)
 
 	printf("  BALL_LOOP_INDEX differed on %d of %d frames\n", indexDiffers,
 		kMaxFrames);
+	printf("  where the first difference sits, frame by frame:\n");
+	for (int i = 0; i < addressKinds; i++)
+		printf("    %04x on %d frames\n", addresses[i], addressCounts[i]);
 
 	if (differingFrames == 0) {
 		printf("  %d frames, every one of them the same as the cartridge's\n",

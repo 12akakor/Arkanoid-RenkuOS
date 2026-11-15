@@ -136,6 +136,26 @@ Game::_PlayLevel()
 		}
 	}
 
+	// CHECK_DEMO_TIMEOUT (0x7241): a demo game lasts 2880 frames, and then the
+	// transition goes back to the title - which is the start-level action with
+	// GAME_STATE at zero - and the title's own variables are cleared.
+	if (fState.Read(GameRam::kGameState) == 0) {
+		const uint16_t timeout = static_cast<uint16_t>(
+			fState.Read(GameRam::kDemoTimeout)
+			| (fState.Read(static_cast<uint16_t>(GameRam::kDemoTimeout + 1))
+				<< 8)) + 1;
+		fState.Write(GameRam::kDemoTimeout,
+			static_cast<uint8_t>(timeout & 0xFF));
+		fState.Write(static_cast<uint16_t>(GameRam::kDemoTimeout + 1),
+			static_cast<uint8_t>(timeout >> 8));
+		if ((timeout & 0xFF) == 0x40 && (timeout >> 8) == 0x0B) {
+			fState.Write(GameRam::kTransitionAction, 0);
+			for (int i = 0; i < 7; i++)
+				fState.Write(static_cast<uint16_t>(GameRam::kBrickHitYPixel
+					+ i), 0);
+		}
+	}
+
 	// The scores, drawn where the original draws them during play.
 	fState.Write(GameRam::kScorePosition, 1);
 	fHud.DrawScoreNumbers();

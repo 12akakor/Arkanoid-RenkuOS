@@ -878,3 +878,32 @@ It still does not agree on everything. The first frame that differs is 479, in
 the name table at 0x182C - a space in the cartridge, a zero in the port - and
 1333 of the 2400 frames differ. That is the next thing to chase, and the test
 prints the address of the first difference on the frame it happens.
+
+## What frame 479 turned out to be, and what is left
+
+The frame-479 difference is not a difference at all, it is where the frame
+boundary falls: at that frame both sides have reached tick 480 and set the
+title's action to 5, the port has already run the screen clear and the cartridge
+has not, and by the next frame both read 0x00 at 0x182C. So it is the same class
+of artifact as the earlier ones, and the test now says so instead of leaving it
+looking like a real divergence.
+
+The real one is later, and `demo_game_test` now prints a map of it: the first
+differing address on each frame, with how many frames it covers. Out of 4000
+frames the counts were
+
+    182c on    1 frame    (the boundary above)
+    e00a on 1073 frames   GAME_TRANSITION_ACTION
+    e02a on   26 frames   the brick map
+    e038 on    1 frame
+    e2ac on    1 frame    BALL_LOOP_INDEX
+    e24e on   20 frames   BALL_TABLE1's active flag
+    e000 on 1811 frames   DEMO_LEVEL
+
+So the demo *ending* is what differs: the transition action and the demo level
+disagree for roughly the frames after the cartridge's demo has timed out, which
+is `CHECK_DEMO_TIMEOUT` (0x7241) - 2880 frames of demo, then the transition goes
+back to the title and the title's variables are cleared. That is ported, and the
+numbers above are what it gives: the port ends its demo at a different point in
+the sequence than the cartridge does, and the demo level it next picks diverges
+with it.

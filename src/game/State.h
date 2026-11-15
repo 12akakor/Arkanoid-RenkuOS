@@ -120,7 +120,8 @@ enum {
 	// The level's last step: the Vaus and READY as sprites, the ball released.
 	kVausAndReadySprites	= 0x5149,	// VAUS_AND_READY_SPRITE_TABLE
 	kSoundLevelStart		= 0xC4,		// SOUND_LEVEL_START_MUSIC
-	kSoundDohLevelStarts	= 0xC8		// SOUND_DOH_LEVEL_STARTS
+	kSoundDohLevelStarts	= 0xC8,		// SOUND_DOH_LEVEL_STARTS
+	kDemoTimeout			= 0xE5AD	// DEMO_TIMEOUT, two bytes
 };
 
 
