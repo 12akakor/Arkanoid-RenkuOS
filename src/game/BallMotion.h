@@ -38,6 +38,7 @@ public:
 
 			BrickCollision& Collision() { return fCollision; }
 			Aliens&		AlienState() { return fAliens; }
+			Ball&			BallState() { return fBall; }
 
 private:
 			State&		fState;

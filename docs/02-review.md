@@ -487,3 +487,39 @@ Still unported, each named by its own routine: the title screen
 the ball's (`CAPSULE_MOVE_DOWN_STEP` 0xB137, `CHECK_CAPSULE_CATCHED` 0xB15C,
 `CHECK_HARD_BRICKS_HIT` 0x97EA, `UPDATE_ALIEN_VERT_DIR_WHEN_BRICK` 0x9726),
 `CHECK_DEMO_TIMEOUT` (0x7241) and the pause handling at 0x40D8.
+
+## A ball that leaves the field
+
+The cartridge decides a lost ball at the end of the ball's step (0x99AD): it
+reads the sprite's Y and, from 184 up, calls `BALL_OUT_BELOW` (0x9B2A). That
+routine clears the ball's table, parks its sprite at 192 with no colour, and
+then settles the loss - one extra ball handed back if there is one, nothing at
+all if the Vaus is already going through the portal (action state 7), and
+otherwise the Vaus set exploding with sound 7 queued.
+
+`Ball::OutBelow` has been in the port for a while and `routine_diff` compares it
+against the cartridge routine by routine, but nothing called it: the ball loop
+in the frame ran the movement and stopped. It is called now, from the ball loop,
+after the movement - the same place the original has it, and in the loop rather
+than in the movement because an inactive ball is parked at 192 and the original
+skips it (0x9944) before ever reaching the test. `motion_test` compares
+`UPDATE_BALL_POSITION` with 0x99DF and nothing else, so the test does not belong
+there either.
+
+`tests/ball_out_test` puts one ball below the field for each of the three balls,
+at three heights, with and without extra balls in hand, on both sides, and
+compares the ball tables, the ball sprites, the extra-ball count, the Vaus's
+action state and the sound queue after one frame: 18 of 18 agree, and 12 of them
+are balls that really did leave the field, 6 of those taking an extra ball
+instead of the Vaus. The extra ball is what keeps those six from exploding the
+Vaus, and both sides agree on which is which.
+
+**The life itself is not ported.** `BALL_OUT_BELOW` does not take a life: it
+sets the Vaus exploding, and the life goes when the Vaus's destruction animation
+finishes and the game reloads the level - `ACTION_LIFE_LOST` (0x7C07), which
+waits 48 ticks, decrements `LIVES`, and either shows GAME OVER or reloads the
+level through `NEXT_OR_SAME_LEVEL`. Neither the destruction animation in
+`EXECUTE_VAUS_ACTION` (0x6E0E onwards) nor that level-reload path is ported, so a
+lost ball in the port leaves the Vaus in the exploding state and the count of
+lives unchanged: the decision matches the cartridge, the consequence after it
+does not exist yet.

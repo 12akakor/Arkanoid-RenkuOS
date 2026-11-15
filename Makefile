@@ -18,7 +18,8 @@ TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	hitpoint_test hud_test playfield_test brickeffect_test sound_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
 	levels_test lives_test soundplayer_test sound_codes_test isr_test \
-	isr_trace isr_multi advance_test vm_test game_session_test frame_test
+	isr_trace isr_multi advance_test vm_test game_session_test frame_test \
+	ball_out_test
 
 # Every binary depends on every game header: a changed constant in State.h has
 # to rebuild the tests, or a stale binary silently passes.
@@ -224,6 +225,11 @@ frame_test: tests/frame_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/frame_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/Vaus.cpp \
 		$(REF)
 
+ball_out_test: tests/ball_out_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/Vaus.cpp \
+		$(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/ball_out_test.cpp src/game/Aliens.cpp src/game/Ball.cpp src/game/BallMotion.cpp src/game/Brick.cpp src/game/BrickCollision.cpp src/game/BrickEffects.cpp src/game/Capsules.cpp src/game/Collision.cpp src/game/Game.cpp src/game/Hud.cpp src/game/Input.cpp src/game/Levels.cpp src/game/Playfield.cpp src/game/Random.cpp src/game/Renderer.cpp src/game/RomImage.cpp src/game/Screen.cpp src/game/Sound.cpp src/game/SoundPlayer.cpp src/game/State.cpp src/game/Vaus.cpp \
+		$(REF)
+
 sound_codes_test: tests/sound_codes_test.cpp src/game/Sound.cpp \
 		src/game/SoundPlayer.cpp src/game/State.cpp src/game/RomImage.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/sound_codes_test.cpp \
@@ -274,6 +280,7 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./lives_test build/arkanoid.rom 200
 	./soundplayer_test build/arkanoid.rom 300
 	./isr_test build/arkanoid.rom 400
+	./ball_out_test build/arkanoid.rom
 	./advance_test build/arkanoid.rom 400
 # The same sweep again, one write journal at a time: every tick's writes to the
 # sound window compared in order, which names the instruction that differs.

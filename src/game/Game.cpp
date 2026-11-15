@@ -81,9 +81,21 @@ Game::_PlayLevel()
 	// when the loop ends (0x9872, 0x99C6).
 	fState.Write(GameRam::kBallLoopIndex, 0);
 	for (int ball = 0; ball < GameRam::kBallCount; ball++) {
-		if (fState.Read(GameRam::kBallTables
-				+ ball * GameRam::kBallTableLength + GameRam::kActive) != 0)
+		const uint16_t table = static_cast<uint16_t>(GameRam::kBallTables
+			+ ball * GameRam::kBallTableLength);
+		if (fState.Read(table + GameRam::kActive) != 0) {
 			fMotion.UpdatePosition(ball);
+
+			// The last thing the original does with each ball (0x99AD): one
+			// that has gone below the field is a lost ball. The test sits in
+			// the loop, not in the movement, because an inactive ball is left
+			// at 192 and the step is skipped for it at 0x9944 before this
+			// point.
+			if (fState.Read(GameRam::kBallSprites
+					+ ball * GameRam::kSpriteLength + GameRam::kSpriteY) >= 184) {
+				fMotion.BallState().OutBelow(ball, ball);
+			}
+		}
 		fState.Write(GameRam::kBallLoopIndex,
 			static_cast<uint8_t>(ball + 1));
 	}
