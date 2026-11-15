@@ -941,3 +941,28 @@ Those two are the next piece: the ball's start position and slope at release,
 and the Vaus following `BALL_X_DEMO` when `GAME_STATE` is zero. Until they are
 in, the demo dies on its first frame of play, and the timeout it is supposed to
 reach after 2880 frames is never seen.
+
+## The missing piece is the glue
+
+The two pieces the last section asked for were written and measured, and the
+measurement says they are not enough on their own, so they were taken back out
+rather than left in unproven:
+
+- `ACTION_INITIALIZE_GLUED_BALL` (0x989E) - the ball's sprite at row 169, glue
+  set, glue counter 120, skewness 3, y speed -1, the level's speed position;
+- the demo's Vaus following `BALL_X_DEMO` (0x6916).
+
+With both in, `demo_game_test` still ends the port's demo within a few frames of
+its start, and the ball table's own bytes then differ for longer than before
+(`0xE24E` on 49 frames, `0xE24F` on 140) - the port now releases a glued ball and
+does not know what to do with it.
+
+That is the actual gap, and it is named: the ball is released **glued**
+(`BALL_TABLE_IDX_GLUE = 1`), and while it is glued its x follows the Vaus -
+`VAUS_X` plus `BALL_TABLE_IDX_VAUS_HIT_X` (0x9917 onwards) - until the glue
+counter runs out or the player launches it. `Ball::CheckGlueAndSkewness` exists
+in the port but nothing in the game calls it, which is why a released ball
+behaves like a free ball at a fixed position and is lost at once.
+
+So the next step is not more state at the level start: it is wiring the glue
+step into the play loop, where the cartridge puts it.
