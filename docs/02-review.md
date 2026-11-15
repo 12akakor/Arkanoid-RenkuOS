@@ -426,3 +426,40 @@ seven, it was empty at the end, and nothing outside the domain reached the
 player or ever sat in `SOUND_NUMBER`. That closes the gap the previous section
 left: the port's game now calls `PLAY_SOUND`, and the counters are asserted over
 a real session rather than only at the choke points.
+
+## A frame of the port against a frame of the cartridge
+
+`tests/frame_test` runs the reference machine's own frame and the port's
+`Game::Tick` from the same memory, and compares the game variables after every
+frame. The paddle count and button state the machine's input hook read off the
+ports are handed to the port, because that is a platform's job; everything
+downstream of them is the comparison.
+
+It is a diagnostic, not a gate: it stops at the first difference and prints it,
+and it is not in `make test` while it still finds something. Both sides are put
+into a level being played first, because the two transitions the port does not
+have yet - the title screen and the level loader - would otherwise be the thing
+being compared.
+
+What it has found so far, in the order it found them:
+
+* The port was writing the sprite attributes straight to the VDP, and left the
+  cartridge's shadow area at `SPRITE_ATTRIBS_AREA` (0xE18D) untouched. The
+  original builds all thirty-two entries in RAM and copies the block; the game
+  reads that area, so a frame of the port has to leave it the same.
+* The shadow is *packed*: the original advances the area's pointer only where it
+  copies an entry, so a sprite it skips leaves no slot behind. Numbering the
+  shadow by sprite gives a different area as soon as one sprite is hidden.
+
+Where it stands: the first difference is now the second slot's X byte in the
+shadow (0xE192, original 0x00, port 0xC0). The shadow ordering is right, so what
+is left is the loop's own bookkeeping - the parameters pointer starts at
+`SPR_PARAMS_BASE - SPR_PARAMS_LEN` (0xE0C9) and steps four bytes before each
+test - and that is the next thing to read line by line rather than guess at.
+
+Still unported, each named by its own routine: the title screen
+(`TRANSITION_START_LEVEL`, which increments `TITLE_TICKS` at 0xE53F),
+`NEXT_OR_SAME_LEVEL` (transition 2), the five steps of `UPDATE_OBJECTS` beyond
+the ball's (`CAPSULE_MOVE_DOWN_STEP` 0xB137, `CHECK_CAPSULE_CATCHED` 0xB15C,
+`CHECK_HARD_BRICKS_HIT` 0x97EA, `UPDATE_ALIEN_VERT_DIR_WHEN_BRICK` 0x9726),
+`CHECK_DEMO_TIMEOUT` (0x7241) and the pause handling at 0x40D8.

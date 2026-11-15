@@ -58,6 +58,7 @@ enum {
 	kBrickRow				= 0xE2AA,
 	kBrickCol				= 0xE2AB,
 	kSpriteParamsBase		= 0xE0CD,
+	kSpriteAttribs			= 0xE18D,	// SPRITE_ATTRIBS_AREA
 	kVausX					= 0xE0CE,	// Vaus left edge
 	kBallBouncesCounter		= 0xE51C,
 	kDohBeenHit				= 0xE2B9,

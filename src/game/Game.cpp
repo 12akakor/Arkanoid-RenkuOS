@@ -90,25 +90,48 @@ Game::_PlayLevel()
 }
 
 
-// The sprite copy the original does at the top of every tick: every sprite is
-// first parked out of sight, then the shadow copy of its parameters is written
-// into the sprite attribute table. The original also swaps sprites 0 and 4 while
-// a capsule falls, which is a workaround for the TMS9918A's four-sprites-per-
-// line limit; this renderer draws every sprite, so that step is not needed and
-// is left out.
+// The sprite copy the original does every frame (0x4116 onwards): every sprite
+// is parked out of sight in the shadow area, the entries that are worth showing
+// are copied into it from the sprite parameters, and the whole area goes to the
+// VDP in one go. The work is done in RAM first because that is what the
+// original does, and a frame of the port has to leave the same memory behind.
+//
+// A sprite is shown only when it has a pattern number, a Y that is not the
+// hidden one, and a colour; the original tests all three. It also swaps sprites
+// 0 and 4 while a capsule falls, a workaround for the TMS9918A's four-sprites-
+// per-line limit, which this renderer does not need.
 void
 Game::_UploadSprites()
 {
-	const uint16_t base = fScreen.SpriteAttributeBase();
 	for (int sprite = 0; sprite < kSpriteCount; sprite++)
-		fScreen.SetVram(base + 4 * sprite, kHiddenY);
+		fState.Write(GameRam::kSpriteAttribs + 4 * sprite + GameRam::kSpriteY, kHiddenY);
 
+	// The entries that are shown are packed into the front of the area: the
+	// original advances the area's pointer only where it copies, so a sprite
+	// it skips does not take a slot.
+	int slot = 0;
 	for (int sprite = 0; sprite < kSpriteCount; sprite++) {
-		const uint16_t source = kSpriteParams + 4 * sprite;
+		const uint16_t source = static_cast<uint16_t>(kSpriteParams
+			+ 4 * sprite);
+		if (fState.Read(source + GameRam::kSpritePattern) == 0)
+			continue;
+		if (fState.Read(source + GameRam::kSpriteY) == kHiddenY)
+			continue;
+		if (fState.Read(source + GameRam::kSpriteColour) == 0)
+			continue;
+
 		for (int byte = 0; byte < 4; byte++) {
-			fScreen.SetVram(base + 4 * sprite + byte,
-				fState.Read(source + byte));
+			fState.Write(static_cast<uint16_t>(GameRam::kSpriteAttribs
+					+ 4 * slot + byte),
+				fState.Read(static_cast<uint16_t>(source + byte)));
 		}
+		slot++;
+	}
+
+	const uint16_t base = fScreen.SpriteAttributeBase();
+	for (int byte = 0; byte < 4 * kSpriteCount; byte++) {
+		fScreen.SetVram(static_cast<uint16_t>(base + byte),
+			fState.Read(static_cast<uint16_t>(GameRam::kSpriteAttribs + byte)));
 	}
 }
 
