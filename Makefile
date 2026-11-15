@@ -19,7 +19,7 @@ TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	capsule_test brickhit_test brickmain_test motion_test vaus_test \
 	levels_test lives_test soundplayer_test sound_codes_test isr_test \
 	isr_trace isr_multi advance_test vm_test game_session_test frame_test \
-	ball_out_test vaus_destroy_test life_lost_test
+	ball_out_test vaus_destroy_test life_lost_test title_data_test
 
 # Every binary depends on every game header: a changed constant in State.h has
 # to rebuild the tests, or a stale binary silently passes.
@@ -61,6 +61,9 @@ embed_rom: tools/embed_rom.cpp tools/png.h
 # cannot come from anything but the original cartridge.
 src/game/RomImage.cpp: build/arkanoid.rom embed_rom
 	./embed_rom build/arkanoid.rom src/game/RomImage.cpp
+
+title_data_test: tests/title_data_test.cpp src/game/State.cpp src/game/RomImage.cpp
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/title_data_test.cpp src/game/State.cpp src/game/RomImage.cpp
 
 rom_test: tests/rom_test.cpp src/game/RomImage.cpp src/game/RomImage.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/rom_test.cpp src/game/RomImage.cpp
@@ -293,6 +296,7 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./ball_out_test build/arkanoid.rom
 	./vaus_destroy_test build/arkanoid.rom
 	./life_lost_test build/arkanoid.rom
+	./title_data_test build/arkanoid.rom
 	./advance_test build/arkanoid.rom 400
 # The same sweep again, one write journal at a time: every tick's writes to the
 # sound window compared in order, which names the instruction that differs.

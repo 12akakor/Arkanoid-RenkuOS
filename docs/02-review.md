@@ -615,3 +615,22 @@ Not compared, and why:
   that is also where "the level reloads" lives: the cartridge does not reload
   the level from here, it goes to that transition, and the reload happens
   inside it.
+
+## The title screen's data
+
+`DRAW_TITLE_SCREEN` (0x4B8A) reads seven tables straight out of the cartridge at
+fixed addresses: `TITLE_TILES` 0x9024, `TITLE_COLORS_COMPRESSED` 0x93F4,
+`ARKANOID_LOGO_CHARS` 0x543E, the three strings at 0x54B3/0x54DE/0x54F6 and
+Taito's two logo halves at 0x5509 and 0x5514. Nothing had to be extracted: the
+port already carries the whole cartridge as `kRomImage`, generated from the ROM
+that `rom_test` checks against the original's sha1, so the data is at its
+address there too - what was missing was the names.
+
+`GameRam` now has them, and `tests/title_data_test` checks that each one lies
+inside the image, that the image and the ROM file agree byte for byte, and that
+the strings read as what the game shows: "PUSH START BUTTON", "@ TAITO
+CORPORATION 1986" and "ALL RIGHTS RESERVED". The title's colours are the one
+piece still compressed; their stream starts `00 04 11` and needs
+`DECOMPRESS_TILE_COLORS` (0x4389), which is not ported yet - so the data is
+located and verified, and the code that expands it is the next step before
+`DRAW_TITLE_SCREEN` itself.

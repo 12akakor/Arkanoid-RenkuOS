@@ -161,6 +161,15 @@ enum {
 	kBrickUnused2			= 0xE2BB,	// BRICK_UNUSED_2
 	kHardBricksRemainingHits = 0xE039,	// HARD_BRICKS_REMAINING_HITS
 	kActionSkewnessCounter	= 0xE5AC,	// ACTION_SKEWNESS_COUNTER
+	// The tables the title screen reads out of the cartridge (0x4B8A).
+	kTitleTiles				= 0x9024,	// TITLE_TILES
+	kTitleColors			= 0x93F4,	// TITLE_COLORS_COMPRESSED
+	kArkanoidLogoChars		= 0x543E,	// ARKANOID_LOGO_CHARS
+	kPushStartButton		= 0x54B3,	// PUSH_START_BUTTON_STR
+	kTaitoCorp				= 0x54DE,	// TAITO_CORP_STR
+	kAllRightsReserved		= 0x54F6,	// ALL_RIGHTS_RESERVED_STR
+	kTaitoHalf1				= 0x5509,	// TAITO_HALF1_LOGO_CHARS
+	kTaitoHalf2				= 0x5514,	// TAITO_HALF2_LOGO_CHARS
 	kLevelTransitionType	= 0xE022,	// LEVEL_TRANSITION_TYPE
 	kScoreLifeBcd			= 0xE01E,	// SCORE_LIFE_BCD
 	kScoreBcdBuffer			= 0xE5A0,	// SCORE_BCD_BUFFER
