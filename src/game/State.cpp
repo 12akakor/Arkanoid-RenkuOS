@@ -40,3 +40,10 @@ State::Write(uint16_t address, uint8_t value)
 	if (onWrite)
 		onWrite(address, value);
 }
+
+
+const uint8_t*
+State::Pointer(uint16_t address) const
+{
+	return &fRam[address];
+}

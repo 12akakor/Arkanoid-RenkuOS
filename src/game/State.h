@@ -84,7 +84,13 @@ enum {
 	kScorePosition			= 0xE544,	// SCORE_POSITION
 	kDecodedAsciiScore	= 0xE58E,	// DECODED_ASCII_SCORE
 	kDecodedZeros			= 0xE594,	// DECODED_ZEROS
-	kDecodedAsciiHighScore	= 0xE59A	// DECODED_ASCII_HIGH_SCORE
+	kDecodedAsciiHighScore	= 0xE59A,	// DECODED_ASCII_HIGH_SCORE
+
+	// Where the title screen's drawing reads and writes.
+	kInDemo					= 0xE00D,	// IN_DEMO
+	kTitleTicks				= 0xE53F,	// TITLE_TICKS
+	kBorderColor			= 0xF3EB,	// BDRCLR
+	kScoreHiScoreStr		= 0x549E	// SCORE_HI_SCORE_STR
 };
 
 
@@ -266,6 +272,9 @@ public:
 	// is the table at 0x9A98.
 	uint8_t				Read(uint16_t address) const;
 	void				Write(uint16_t address, uint8_t value);
+
+	// A pointer into the RAM, for the routines that hand the BIOS a buffer.
+	const uint8_t*		Pointer(uint16_t address) const;
 
 	uint8_t*			Ram() { return fRam; }
 	const uint8_t*		Ram() const { return fRam; }

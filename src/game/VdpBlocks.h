@@ -13,6 +13,7 @@
 
 
 class Screen;
+class State;
 
 
 namespace VdpBlocks {
@@ -23,6 +24,10 @@ void WriteThird(const uint8_t* source, Screen& screen, uint16_t vramAddress);
 
 // The three calls that fill the pattern table from the same data.
 void WritePatternTable(const uint8_t* source, Screen& screen);
+
+// CLEAR_SCREEN (0x4227): the name table and the sprite attributes blanked, and
+// the pocket of memory at 0xE0C9 that the game's copies of them live in.
+void ClearScreen(State& state, Screen& screen);
 
 // FILL_COLORS_ALL_SCREEN (0x41FF): the title's compressed colours expanded
 // into the three thirds of the colour table.

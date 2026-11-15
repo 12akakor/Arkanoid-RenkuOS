@@ -7,6 +7,7 @@
 #include "VdpBlocks.h"
 
 #include "Screen.h"
+#include "State.h"
 #include "TileColors.h"
 
 
@@ -47,6 +48,20 @@ VdpBlocks::WritePatternTable(const uint8_t* source, Screen& screen)
 		WriteThird(source, screen,
 			static_cast<uint16_t>(kPatternTable + third * kThird));
 	}
+}
+
+
+// CLEAR_SCREEN (0x4227): FILVRM of the name table with zeros, FILVRM of the
+// sprite attribute table with 192, then 192 written over 128 bytes at 0xE0C9.
+void
+VdpBlocks::ClearScreen(State& state, Screen& screen)
+{
+	screen.FillVram(screen.NameBase(), 0, 0x300);
+	screen.FillVram(screen.SpriteAttributeBase(), 192, 128);
+
+	for (uint16_t i = 0; i < 128; i++)
+		state.Write(static_cast<uint16_t>(GameRam::kSpriteParamsBase - 4 + i),
+			192);
 }
 
 

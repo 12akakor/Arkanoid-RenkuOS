@@ -5,6 +5,7 @@
 
 
 #include "Game.h"
+#include "VdpBlocks.h"
 
 
 Game::Game(SoundPlayer::PsgSink* sink)
@@ -326,18 +327,7 @@ Game::_ResumePending()
 void
 Game::_ClearScreen()
 {
-	const uint16_t nameTable
-		= static_cast<uint16_t>(fScreen.SpriteAttributeBase() - 0x300);
-	for (uint16_t i = 0; i < 0x300; i++)
-		fScreen.SetVram(static_cast<uint16_t>(nameTable + i), 0);
-
-	const uint16_t base = fScreen.SpriteAttributeBase();
-	for (uint16_t i = 0; i < 128; i++)
-		fScreen.SetVram(static_cast<uint16_t>(base + i), 192);
-
-	for (uint16_t i = 0; i < 128; i++)
-		fState.Write(static_cast<uint16_t>(GameRam::kSpriteParamsBase - 4 + i),
-			192);
+	VdpBlocks::ClearScreen(fState, fScreen);
 }
 
 

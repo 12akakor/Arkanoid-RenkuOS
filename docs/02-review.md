@@ -685,3 +685,47 @@ So the pattern and colour tables the title screen starts from are the
 cartridge's, byte for byte. What is left of that screen is the name table, the
 logo, the strings and Taito's logo, and then the state machine that waits for
 START.
+
+## Drawing the title screen
+
+`DRAW_TITLE_SCREEN` is two halves. The first looks at `GAME_STATE` and at
+`BRICK_HIT_Y_PIXEL` - which is the title screen's action as well as a brick's row
+- and either hands off to the level reload, the story, or one of the three
+waiting states. The second, from 0x4BAA to 0x4C47, is the drawing, and that is
+`TitleScreen::Draw`:
+
+1. `BDRCLR = 0` and `CHGCLR`, then `CLEAR_SCREEN` - the border and the screen,
+2. `TITLE_TILES` into the pattern table, three thirds, and
+   `FILL_COLORS_ALL_SCREEN` for the colours,
+3. the name table filled with 0, then `DRAW_UP_SCORES`,
+4. the Arkanoid logo's 0x60 characters at 0x18C0, and one sprite (y 52, x 148,
+   pattern 0xA0, colour 10) in the grid inside the logo,
+5. `TITLE_SCREEN_ACTION = 1` in `BRICK_HIT_Y_PIXEL`, "PRESS START BUTTON" at
+   0x19A8, Taito's copyright at 0x1A84, "ALL RIGHTS RESERVED" at 0x1AC6, and
+   Taito's logo in its two halves at 0x1A2B and 0x1A4B,
+6. `TITLE_TICKS = 0`.
+
+`DRAW_UP_SCORES` (0x4FE0) writes "SCORE    HIGH SCORE" and calls
+`DRAW_SCORE_NUMBERS` (0x53B9), which decodes three BCD buffers into ASCII with
+`DECODE_BCD_TO_ASCII` (0x5420) - `RRD` against 0x33, so high nibble first - and
+blanks the leading zeros with `REMOVE_HEADING_ZEROS` (0x5431) before copying six
+characters each to the top of the screen, or down its right side when
+`SCORE_POSITION` is 1.
+
+`tests/title_screen_test` calls the cartridge's routine with `GAME_STATE`,
+`IN_DEMO` and the title's action all zero so it takes the drawing path, sets a
+score and a high score in both, and compares:
+
+    pattern table        0000-1800: 0 differ
+    name table           1800-1b00: 0 differ
+    sprite attributes    1b00-1b80: 0 differ
+    colour table         2000-3800: 0 differ
+    score buffers        e58e-e5a0: 0 differ
+    cleared memory       e0c9-e149: 0 differ
+    sprite, action       e0cd-e0d1: 0 differ
+    title ticks          e53c-e540: 0 differ
+
+The name table being empty of differences is the whole title screen: scores,
+logo, all four strings and Taito's logo, at the addresses the cartridge puts
+them. `CLEAR_SCREEN` moved into `VdpBlocks` on the way, so the game's own level
+start and this drawing share the one copy of it.
