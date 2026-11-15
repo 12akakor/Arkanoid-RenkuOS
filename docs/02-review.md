@@ -772,3 +772,41 @@ the level start already was.
 
 The last one stops the cartridge at 0x4D40, the instruction before its own wait,
 so the wait itself is not what is being compared.
+
+## The story, and the demo's way in
+
+When the title's 480 ticks run out, the screen clears and `IN_DEMO` is set. From
+there `DRAW_TITLE_SCREEN` hands every frame to 0x4EDD, which is the story typed
+out a character at a time - `TitleScreen::Story`:
+
+- a character every two frames, counted in `STORY_CHAR_DELAY_COUNTER` (0xE00E),
+- the destination from `STORY_VDP_ROW_POINTERS[STORY_WRITE_ROW]` plus
+  `STORY_CHAR_OF_LINE_INDEX`, the text from `STORY_STR` (0x5005) at
+  `STORY_MSG_INDEX`,
+- a space in the text is consumed and not written, so the paragraphs break,
+- 26 characters end a row and nine rows end the text, which sets
+  `STORY_ALREADY_WRITTEN` (0xE013),
+- then 120 frames with the finished text on the screen - `STORY_SHOWN_PAUSE`
+  (0xE014) - and the story lets go: `IN_DEMO` and the three words at 0xE00F
+  cleared,
+- or START skips the lot, which also puts `BRICK_HIT_Y_PIXEL`, `VAUS_X2`,
+  `TITLE_TICKS`'s second byte and `BALL_X_SLOPE` back to zero.
+
+With `IN_DEMO` cleared and the action still 5, the next frame is the demo's
+entry: the next of the four demo levels, `LEVEL_TRANSITION_NEXT`, and 0x4D09
+with `GAME_STATE` at 0 - which is the same level start, except that a game is
+not being played, so the scores and the 48-frame wait are skipped and the level
+goes straight to the screen.
+
+`tests/title_loop_test` now runs ten cases against the cartridge, the four new
+ones being:
+
+    the story types itself        story counters and the typed text equal
+    START skips the story         counters, title action and paddle cleared
+    the finished story pauses     120 frames then out of the demo
+    the demo's level start        no wait asked for, screen cleared
+
+What that does not cover is the demo being *played*: the level runs through the
+same play path as a real game, and the way it ends back at the title is the life
+lost path's `GAME_STATE == 0` branch, both already ported, but neither is
+compared frame by frame here.

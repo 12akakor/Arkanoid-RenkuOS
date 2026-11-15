@@ -48,6 +48,10 @@ Result Tick(State& state, Screen& screen);
 // Returns true when the cartridge's 48-frame wait comes next.
 bool StartLevel(State& state, Screen& screen);
 
+// The story, 0x4EDD: the text typed a character every two frames, a 120-frame
+// pause to read it, and START skipping straight out of it.
+void Story(State& state, Screen& screen);
+
 }
 
 

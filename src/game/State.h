@@ -100,7 +100,22 @@ enum {
 	kDemoLevelsTable		= 0x4CC2,	// DEMO_LEVELS_TABLE
 	kInGameTiles			= 0x7D84,	// IN_GAME_TILES
 	kInGameColors			= 0x8584,	// IN_GAME_COLORS
-	kSoundGameStartMusic	= 0xC3		// SOUND_GAME_START_MUSIC
+	kSoundGameStartMusic	= 0xC3,		// SOUND_GAME_START_MUSIC
+
+	// The story's typewriter, one character every two frames.
+	kStoryCharDelay			= 0xE00E,	// STORY_CHAR_DELAY_COUNTER
+	kStoryWriteRow			= 0xE00F,	// STORY_WRITE_ROW
+	kStoryCharOfLine		= 0xE010,	// STORY_CHAR_OF_LINE_INDEX
+	kStoryMsgIndex			= 0xE011,	// STORY_MSG_INDEX
+	kStoryCharsWritten		= 0xE012,	// STORY_CHARS_WRITTEN_TO_LINE
+	kStoryAlreadyWritten	= 0xE013,	// STORY_ALREADY_WRITTEN
+	kStoryShownPause		= 0xE014,	// STORY_SHOWN_PAUSE
+	kStoryVars				= 0xE00F,	// the pairs 0x4F80 clears
+	kStoryStr				= 0x5005,	// STORY_STR
+	kStoryRowPointers		= 0x50EF,	// STORY_VDP_ROW_POINTERS
+	kStoryCharsPerLine		= 26,		// STORY_CHARS_PER_LINE
+	kStoryNumLines			= 9,		// STORY_NUM_LINES
+	kVausX2Word				= 0xE53E	// VAUS_X2, two bytes
 };
 
 

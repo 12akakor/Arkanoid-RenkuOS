@@ -252,6 +252,64 @@ main(int argc, char** argv)
 			0x1B80);
 	}
 
+	// 7. The story types itself out, a character every two frames.
+	printf("  the story types itself\n");
+	Prepare(state, machine, screen, 5);
+	state.Write(GameRam::kInDemo, 1);
+	machine.Write(0xE00D, 1);
+	for (int i = 0; i < 60; i++)
+		CallOriginal(machine, 0x4B8A, 0);
+	for (int i = 0; i < 60; i++)
+		TitleScreen::Tick(state, screen);
+	failures += CompareRam("story counters", state, machine, 0xE00D, 0xE015);
+	failures += CompareVram("story text", screen, machine, 0x1800, 0x1B00);
+
+	// 8. START skips out of it.
+	printf("  START skips the story\n");
+	Prepare(state, machine, screen, 5);
+	state.Write(GameRam::kInDemo, 1);
+	machine.Write(0xE00D, 1);
+	state.Write(GameRam::kStoryWriteRow, 4);
+	machine.Write(0xE00F, 4);
+	machine.Write(0xE0BF, 0x10);
+	state.Write(GameRam::kControls, 0x10);
+	CallOriginal(machine, 0x4B8A, 0);
+	TitleScreen::Tick(state, screen);
+	failures += CompareRam("out of the demo", state, machine, 0xE00D, 0xE015);
+	failures += CompareRam("title action", state, machine, 0xE53C, 0xE544);
+
+	// 9. The 120-frame pause at the end of the text.
+	printf("  the finished story pauses\n");
+	Prepare(state, machine, screen, 5);
+	state.Write(GameRam::kInDemo, 1);
+	machine.Write(0xE00D, 1);
+	state.Write(GameRam::kStoryAlreadyWritten, 1);
+	machine.Write(0xE013, 1);
+	state.Write(GameRam::kStoryShownPause, 119);
+	machine.Write(0xE014, 119);
+	CallOriginal(machine, 0x4B8A, 0);
+	TitleScreen::Tick(state, screen);
+	failures += CompareRam("pause ends the story", state, machine, 0xE00D,
+		0xE015);
+
+	// 10. A level start with no game running: the demo's, which skips the
+	// scores and the wait.
+	printf("  the demo's level start\n");
+	Prepare(state, machine, screen, 5);
+	state.Write(GameRam::kLevelDisplay, 3);
+	machine.Write(0xE01C, 3);
+	const bool demoReached = CallOriginal(machine, 0x4D09, 0x4D46);
+	if (!demoReached) {
+		printf("    the original did not reach 0x4d46\n");
+		failures++;
+	} else {
+		if (TitleScreen::StartLevel(state, screen)) {
+			printf("    the port asked for a wait the demo does not have\n");
+			failures++;
+		}
+		failures += CompareVram("demo screen", screen, machine, 0x1800, 0x1B00);
+	}
+
 	printf("%s\n", failures == 0
 		? "the title loop runs as the cartridge runs it"
 		: "the title loop differs from the cartridge's");

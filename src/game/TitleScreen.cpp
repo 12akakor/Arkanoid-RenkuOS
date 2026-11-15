@@ -181,6 +181,86 @@ TitleScreen::DrawRoundMessage(State& state, Screen& screen)
 }
 
 
+// The story, 0x4EDD. Its own little state machine in the memory at 0xE00E: a
+// character every two frames, nine rows of 26, a space skipped rather than
+// written, then 120 frames of the finished text before it lets go.
+void
+TitleScreen::Story(State& state, Screen& screen)
+{
+	const bool pressed = state.Read(GameRam::kUseVausPaddle) != 0
+		? (state.Read(static_cast<uint16_t>(GameRam::kPaddleStatus + 1))
+			& 0x02) != 0
+		: (state.Read(GameRam::kControls) & 0x10) != 0;
+
+	if (pressed || state.Read(GameRam::kStoryAlreadyWritten) != 0) {
+		if (!pressed) {
+			const uint8_t pause = static_cast<uint8_t>(
+				state.Read(GameRam::kStoryShownPause) + 1);
+			state.Write(GameRam::kStoryShownPause, pause);
+			if (pause != 120)
+				return;
+		} else {
+			// START: the paddle, the ball and the title's ticks put back.
+			state.Write(GameRam::kBrickHitYPixel, 0);
+			state.Write(static_cast<uint16_t>(GameRam::kBrickHitYPixel + 1), 0);
+			state.Write(GameRam::kVausX2Word, 0);
+			state.Write(static_cast<uint16_t>(GameRam::kVausX2Word + 1), 0);
+			state.Write(static_cast<uint16_t>(GameRam::kTitleTicks + 1), 0);
+			state.Write(static_cast<uint16_t>(GameRam::kTitleTicks + 2), 0);
+			state.Write(GameRam::kBallXSlope, 0);
+			state.Write(static_cast<uint16_t>(GameRam::kBallXSlope + 1), 0);
+		}
+
+		// Out of the demo, and the story's own counters back to the start. The
+		// cartridge clears them as three words at 0xE00D.
+		for (int i = 0; i < 8; i++)
+			state.Write(static_cast<uint16_t>(GameRam::kInDemo + i), 0);
+		return;
+	}
+
+	const uint8_t delay = static_cast<uint8_t>(
+		state.Read(GameRam::kStoryCharDelay) + 1);
+	state.Write(GameRam::kStoryCharDelay, delay);
+	if (delay != 2)
+		return;
+	state.Write(GameRam::kStoryCharDelay, 0);
+
+	const uint8_t row = state.Read(GameRam::kStoryWriteRow);
+	const uint16_t rowAddress = static_cast<uint16_t>(
+		state.Read(static_cast<uint16_t>(GameRam::kStoryRowPointers + row * 2))
+		| (state.Read(static_cast<uint16_t>(GameRam::kStoryRowPointers
+			+ row * 2 + 1)) << 8));
+	const uint16_t address = static_cast<uint16_t>(rowAddress
+		+ state.Read(GameRam::kStoryCharOfLine));
+
+	const uint8_t character = Cart(GameRam::kStoryStr)[
+		state.Read(GameRam::kStoryMsgIndex)];
+	if (character != 0x20)
+		screen.SetVram(address, character);
+
+	state.Write(GameRam::kStoryMsgIndex,
+		static_cast<uint8_t>(state.Read(GameRam::kStoryMsgIndex) + 1));
+	state.Write(GameRam::kStoryCharOfLine,
+		static_cast<uint8_t>(state.Read(GameRam::kStoryCharOfLine) + 1));
+
+	const uint8_t written = static_cast<uint8_t>(
+		state.Read(GameRam::kStoryCharsWritten) + 1);
+	state.Write(GameRam::kStoryCharsWritten, written);
+	if (written != GameRam::kStoryCharsPerLine)
+		return;
+
+	state.Write(GameRam::kStoryCharsWritten, 0);
+	state.Write(GameRam::kStoryCharOfLine, 0);
+
+	const uint8_t nextRow = static_cast<uint8_t>(row + 1);
+	state.Write(GameRam::kStoryWriteRow, nextRow);
+	if (nextRow != GameRam::kStoryNumLines)
+		return;
+
+	state.Write(GameRam::kStoryAlreadyWritten, 1);
+}
+
+
 // TRANSITION_START_LEVEL's target, 0x4D09 to 0x4D46.
 bool
 TitleScreen::StartLevel(State& state, Screen& screen)
@@ -299,8 +379,12 @@ TitleScreen::Tick(State& state, Screen& screen)
 
 	// A game in progress reloads a level (0x4D09) and the demo shows its story
 	// (0x4EDD); neither is this screen's business.
-	if (state.Read(GameRam::kGameState) != 0 || state.Read(GameRam::kInDemo) != 0)
+	if (state.Read(GameRam::kGameState) != 0)
+		return result;	// the level reload at 0x4D09
+	if (state.Read(GameRam::kInDemo) != 0) {
+		Story(state, screen);
 		return result;
+	}
 
 	switch (state.Read(GameRam::kBrickHitYPixel)) {
 		case 1:
