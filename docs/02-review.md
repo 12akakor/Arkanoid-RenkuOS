@@ -846,3 +846,35 @@ So the honest state of the demo: it starts, from the right level, at the right
 frame - and its play diverges from the first frame. This is a diagnostic, not a
 passing check, and it is not in `make test`'s run list, the same way `frame_test`
 isn't.
+
+## Why the ball loop index sat at three
+
+The measurement said `BALL_LOOP_INDEX` was 3 in the port while the cartridge
+left it at 0, and chasing it found two things rather than one.
+
+`BALL_MOVEMENT_STEP` (0x9872) does leave the index at three - it clears it,
+walks the three balls and stops when the counter reaches 3 - but it is only ever
+entered with a ball to move. While every ball is inactive the step does not run
+at all and the index keeps whatever the level start left, which is zero. The port
+ran the loop and wrote the index every frame, so it said three while the
+cartridge said zero. That is fixed: when no ball is active the step is skipped
+and the index is left alone.
+
+The second thing is why the counter only reaches three later in the cartridge:
+the ball is not released at the level start by the part of the load that was
+ported. The level's last step, 0x4E78 to 0x4EDC, was missing, and it is
+`Game::_ReadyForPlay`: the Vaus and READY drawn as seven sprites over the
+attribute table, the level's music and its 144-frame wait (256, and a different
+tune, on the final level) when a game is being played, and then
+`BALL_TABLE1`'s active flag set, `BALL_X_DEMO` put at 104, `IN_DEMO` and the
+story's counters cleared and the sound put out. Without it the port's ball never
+leaves the Vaus, which is why the demo never starts moving.
+
+With both in, `demo_game_test` now starts the two from the same title screen and
+they agree about the ball: at the frames it samples, `BALL_LOOP_INDEX` is 3 and
+`BALL_TABLE1` is active on both sides.
+
+It still does not agree on everything. The first frame that differs is 479, in
+the name table at 0x182C - a space in the cartridge, a zero in the port - and
+1333 of the 2400 frames differ. That is the next thing to chase, and the test
+prints the address of the first difference on the frame it happens.

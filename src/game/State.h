@@ -115,7 +115,12 @@ enum {
 	kStoryRowPointers		= 0x50EF,	// STORY_VDP_ROW_POINTERS
 	kStoryCharsPerLine		= 26,		// STORY_CHARS_PER_LINE
 	kStoryNumLines			= 9,		// STORY_NUM_LINES
-	kVausX2Word				= 0xE53E	// VAUS_X2, two bytes
+	kVausX2Word				= 0xE53E,	// VAUS_X2, two bytes
+
+	// The level's last step: the Vaus and READY as sprites, the ball released.
+	kVausAndReadySprites	= 0x5149,	// VAUS_AND_READY_SPRITE_TABLE
+	kSoundLevelStart		= 0xC4,		// SOUND_LEVEL_START_MUSIC
+	kSoundDohLevelStarts	= 0xC8		// SOUND_DOH_LEVEL_STARTS
 };
 
 

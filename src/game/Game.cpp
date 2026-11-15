@@ -100,25 +100,40 @@ Game::_PlayLevel()
 	// still to come. The index is the step's own counter: it starts at zero,
 	// counts every ball whether it is active or not, and is left holding three
 	// when the loop ends (0x9872, 0x99C6).
-	fState.Write(GameRam::kBallLoopIndex, 0);
+	//
+	// While every ball is inactive nothing moves, and the step is not run at
+	// all: the cartridge leaves the index where it was - zero from the level
+	// start - until a ball is launched (measured against it frame by frame).
+	bool anyActive = false;
 	for (int ball = 0; ball < GameRam::kBallCount; ball++) {
-		const uint16_t table = static_cast<uint16_t>(GameRam::kBallTables
-			+ ball * GameRam::kBallTableLength);
-		if (fState.Read(table + GameRam::kActive) != 0) {
-			fMotion.UpdatePosition(ball);
-
-			// The last thing the original does with each ball (0x99AD): one
-			// that has gone below the field is a lost ball. The test sits in
-			// the loop, not in the movement, because an inactive ball is left
-			// at 192 and the step is skipped for it at 0x9944 before this
-			// point.
-			if (fState.Read(GameRam::kBallSprites
-					+ ball * GameRam::kSpriteLength + GameRam::kSpriteY) >= 184) {
-				fMotion.BallState().OutBelow(ball, ball);
-			}
+		if (fState.Read(static_cast<uint16_t>(GameRam::kBallTables
+				+ ball * GameRam::kBallTableLength + GameRam::kActive)) != 0) {
+			anyActive = true;
 		}
-		fState.Write(GameRam::kBallLoopIndex,
-			static_cast<uint8_t>(ball + 1));
+	}
+
+	if (anyActive) {
+		fState.Write(GameRam::kBallLoopIndex, 0);
+		for (int ball = 0; ball < GameRam::kBallCount; ball++) {
+			const uint16_t table = static_cast<uint16_t>(GameRam::kBallTables
+				+ ball * GameRam::kBallTableLength);
+			if (fState.Read(table + GameRam::kActive) != 0) {
+				fMotion.UpdatePosition(ball);
+
+				// The last thing the original does with each ball (0x99AD):
+				// one that has gone below the field is a lost ball. The test
+				// sits in the loop, not in the movement, because an inactive
+				// ball is left at 192 and the step is skipped for it at 0x9944
+				// before this point.
+				if (fState.Read(GameRam::kBallSprites
+						+ ball * GameRam::kSpriteLength
+						+ GameRam::kSpriteY) >= 184) {
+					fMotion.BallState().OutBelow(ball, ball);
+				}
+			}
+			fState.Write(GameRam::kBallLoopIndex,
+				static_cast<uint8_t>(ball + 1));
+		}
 	}
 
 	// The scores, drawn where the original draws them during play.
@@ -220,6 +235,52 @@ Game::LoadLevel()
 	fLevels.CopyBrickMap();
 	fLevels.AddBricksToTilemap();
 	fLevels.DrawBackgroundTilemap();
+
+	_ReadyForPlay();
+}
+
+
+// The level's last step, 0x4E78 to 0x4EDC: the Vaus and READY drawn as seven
+// sprites over the attribute table, the level's music and its wait when a game
+// is being played, and then the ball released - at BALL_X_DEMO's column - with
+// IN_DEMO and the story's counters cleared and the sound put out.
+void
+Game::_ReadyForPlay()
+{
+	fScreen.CopyToVram(fScreen.SpriteAttributeBase(),
+		kRomImage + (GameRam::kVausAndReadySprites - kRomBase), 7 * 4);
+
+	fState.Write(GameRam::kSoundNumber, 0);
+	fState.Write(static_cast<uint16_t>(GameRam::kInDemo), 0);
+	fState.Write(static_cast<uint16_t>(GameRam::kInDemo + 1), 0);
+	for (int i = 0; i < 6; i++)
+		fState.Write(static_cast<uint16_t>(GameRam::kStoryVars + i), 0);
+
+	// The demo starts at the title's side and waits for no music.
+	if (fState.Read(GameRam::kGameState) == 0) {
+		_ReleaseBall();
+		return;
+	}
+
+	const bool finalLevel = fState.Read(GameRam::kLevel) == GameRam::kFinalLevel;
+	fState.Write(GameRam::kSoundNumber, finalLevel
+		? GameRam::kSoundDohLevelStarts : GameRam::kSoundLevelStart);
+	fSoundPlayer.Play();
+
+	fDelay = finalLevel ? 256 : 144;
+	fPending = kPendingReady;
+}
+
+
+// The ball let go of the Vaus, and the one frame's wait after it.
+void
+Game::_ReleaseBall()
+{
+	fState.Write(GameRam::kBallTables + GameRam::kActive, 1);
+	fState.Write(GameRam::kBallXDemo, 104);
+
+	fDelay = 1;
+	fPending = kPendingNone;
 }
 
 
@@ -354,6 +415,9 @@ Game::_ResumePending()
 	switch (pending) {
 		case kPendingStartLevel:
 			_LevelReloadDone();
+			break;
+		case kPendingReady:
+			_ReleaseBall();
 			break;
 		case kPendingLifeLost:
 			_LifeLostDone();

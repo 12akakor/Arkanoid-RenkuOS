@@ -40,7 +40,7 @@ namespace {
 
 const uint16_t kComparedFrom = 0xE000;
 const uint16_t kComparedTo = 0xE5C0;
-const int kMaxFrames = 1200;
+const int kMaxFrames = 2400;
 const int kReported = 12;
 
 // Aliens keep their own tick counters, which the port is not driving yet.
@@ -75,14 +75,14 @@ ReadFile(const std::string& path, std::vector<uint8_t>& data)
 }
 
 
-// True once the demo level is on the screen and the game is running it.
+// True while the title screen waits for someone to start the game.
 bool
-DemoRunning(Machine1& machine)
+TitleWaiting(Machine1& machine)
 {
 	return machine.Ram()[0xE00B] == 0	// GAME_STATE
 		&& machine.Ram()[0xE00D] == 0	// IN_DEMO
-		&& machine.Ram()[0xE00A] == 1	// GAME_TRANSITION_ACTION
-		&& machine.Ram()[0xE01B] != 0;	// LEVEL
+		&& machine.Ram()[0xE00A] == 0	// GAME_TRANSITION_ACTION
+		&& machine.Ram()[0xE53C] == 1;	// TITLE_SCREEN_ACTION_WAIT
 }
 
 }
@@ -116,15 +116,15 @@ main(int argc, char** argv)
 	int frame = 0;
 	for (; frame < 6000; frame++) {
 		machine.RunFrame();
-		if (frame > 600 && DemoRunning(machine))
+		if (frame > 900 && TitleWaiting(machine))
 			break;
 	}
-	if (!DemoRunning(machine)) {
-		printf("  the machine never started a demo game (frame %d)\n", frame);
+	if (!TitleWaiting(machine)) {
+		printf("  the machine never settled at the title (frame %d)\n", frame);
 		return 1;
 	}
-	printf("  the demo level starts at frame %d, level %d\n", frame,
-		machine.Ram()[0xE01B]);
+	printf("  both start from the title at frame %d, ticks %d\n", frame,
+		machine.Ram()[0xE53F] | (machine.Ram()[0xE540] << 8));
 
 	// The port starts from exactly the machine's state.
 	Game game;
@@ -136,6 +136,7 @@ main(int argc, char** argv)
 		screen.SetRegister(i, machine.Vdp().Register(i));
 
 	KeyMatrix keys = {};
+	int indexDiffers = 0;
 	int differingFrames = 0;
 	int firstFrame = -1;
 	int reported = 0;
@@ -146,6 +147,15 @@ main(int argc, char** argv)
 	for (int tick = 0; tick < kMaxFrames; tick++) {
 		machine.RunFrame();
 		game.Tick(keys, 100, 0);
+
+		if (machine.Ram()[0xE2AC] != state.Read(0xE2AC))
+			indexDiffers++;
+		if (tick == 0 || tick == 5 || tick == 40 || tick == 120 || tick == 600) {
+			printf("  at %4d: index machine %d port %d, ball1 machine %d port %d\n",
+				tick, machine.Ram()[0xE2AC], state.Read(0xE2AC),
+				machine.Ram()[0xE24E],
+				state.Read(GameRam::kBallTables + GameRam::kActive));
+		}
 
 		uint16_t address = kComparedFrom;
 		for (; address < kComparedTo; address++) {
@@ -188,6 +198,9 @@ main(int argc, char** argv)
 		}
 		differingFrames++;
 	}
+
+	printf("  BALL_LOOP_INDEX differed on %d of %d frames\n", indexDiffers,
+		kMaxFrames);
 
 	if (differingFrames == 0) {
 		printf("  %d frames, every one of them the same as the cartridge's\n",

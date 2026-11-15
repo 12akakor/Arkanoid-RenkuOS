@@ -71,6 +71,8 @@ public:
 	void				LoadLevel();
 	void				_StartLevel();
 	void				_LevelReloadDone();
+	void				_ReadyForPlay();
+	void				_ReleaseBall();
 
 	// The picture, one colour index per pixel, and its palette.
 	const uint8_t*		Frame(bool spriteLimit = false);
@@ -97,7 +99,8 @@ private:
 		kPendingNone = 0,
 		kPendingLifeLost,
 		kPendingGameOverClear,
-		kPendingStartLevel
+		kPendingStartLevel,
+		kPendingReady
 	};
 
 	void				_UploadSprites();
