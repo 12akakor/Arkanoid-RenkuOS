@@ -79,6 +79,24 @@ public:
 			SoundPlayer&	GetSoundPlayer() { return fSoundPlayer; }
 
 private:
+	// NEXT_OR_SAME_LEVEL (0x7B94) and the two actions behind it. The delays
+	// the cartridge spends inside the handler are `halt` loops there, forty
+	// eight and sixty frames long; here they are frames in which nothing
+	// happens, which is what the cartridge's memory does during them.
+	void					_NextOrSameLevel();
+	void					_IncLevel();
+	void					_LifeLost();
+	void					_LifeLostDone();
+	void					_BrickRepaintDone();
+	void					_ClearScreen();
+	void					_ResumePending();
+
+	enum {					// what to do when fDelay runs out
+		kPendingNone = 0,
+		kPendingLifeLost,
+		kPendingGameOverClear
+	};
+
 	void				_UploadSprites();
 	void				_PlayLevel();
 
@@ -93,6 +111,8 @@ private:
 			Sound			fSound;
 			SoundPlayer		fSoundPlayer;
 			uint8_t		fFrame[kWidth * kHeight];
+			uint16_t		fDelay = 0;
+			uint8_t			fPending = kPendingNone;
 };
 
 

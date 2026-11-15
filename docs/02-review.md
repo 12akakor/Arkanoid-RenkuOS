@@ -561,3 +561,57 @@ both transition variables agree.
 The life itself is still not taken: the transition the animation ends with goes
 to `NEXT_OR_SAME_LEVEL`, and that level reload is not ported. The port now sets
 the same transition and stops, which is where the frame comparison also stops.
+
+## The life, and what follows it
+
+`NEXT_OR_SAME_LEVEL` (0x7B94) is the transition a destroyed Vaus sets. It reads
+`LEVEL_TRANSITION_TYPE` and jumps through `TBL_ACTION_LEVEL`: the next level,
+the same level, and both of them end in the life being taken. From the title
+screen it does none of that - `GAME_STATE` is zero - and goes straight to the
+tail, which wipes `BRICK_MAP` and puts the game back at the title.
+
+The delays are the interesting part. The cartridge waits by `halt`ing inside the
+handler - `DELAY_HL_TICKS` (0x4380) is a halt loop - forty-eight frames before
+the life goes and sixty more before the game runs again. The port cannot halt,
+so those frames are frames in which `Game::Tick` does nothing at all, which is
+exactly what the cartridge's memory does during them. The frame each change
+happens on is unchanged: measured on the cartridge, a life lost takes the count
+from 3 to 2 on frame 48, and the port does the same.
+
+What each path does:
+
+* **More lives**: `LIVES` is decremented, the transition is set to 0, and sixty
+  frames pass.
+* **The last life** (`LIVES` was 0, so it becomes 0xFF): `CHEAT2_LEVEL` is
+  saved from `LEVEL`, or 0x321F for the last level; `SOUND_NUMBER` is set to
+  GAME OVER (0xC6) and played at once; the four sprites that spell it are
+  written to the sprite table from `GAME_OVER_SPR_PARAMS` (0x7C5D); 240 frames
+  pass; `CLEAR_SCREEN` (0x4227) blanks the name table, the sprite table and the
+  hundred and twenty-eight bytes at 0xE0C9; then the tail wipes `BRICK_MAP`,
+  sets the transition to 0 and `GAME_STATE` to zero.
+* **The next level**: the displayed level is incremented as packed BCD with the
+  Z80's DAA (nibble carry to 0x60), the level itself in binary, and the same
+  sixty-frame wait follows. On the last level both are cleared and the wait
+  leads to the ending, whose animation is not ported.
+
+`tests/life_lost_test` runs three of those against the cartridge frame by frame
+over 0xE000-0xE600: a life lost with two lives in hand (100 frames, the
+decrement at frame 48 and the sixty-frame wait), the last life and GAME OVER
+(140 frames, up to the end of the tune), and the next level (60 frames). All
+three agree on every frame.
+
+Not compared, and why:
+
+* The aliens' tick counters and the PSG driver's own variables
+  (0xE5C3-0xE5FF), which the port keeps in objects rather than in the
+  cartridge's RAM; the driver's output is compared write by write in the sound
+  tests instead.
+* The tune's end: the cartridge's driver writes a "finished" marker into
+  `SOUND_NUMBER` that the port's player does not mirror, so the frame after the
+  GAME OVER music stops is where the two part company. The 240-frame wait and
+  the clear after it are ported but not compared.
+* Anything after the clear or after the sixty-frame wait, because both land on
+  the transition that draws the title screen, which is still not ported - and
+  that is also where "the level reloads" lives: the cartridge does not reload
+  the level from here, it goes to that transition, and the reload happens
+  inside it.

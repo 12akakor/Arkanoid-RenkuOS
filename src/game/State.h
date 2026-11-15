@@ -29,6 +29,9 @@ enum {
 	kGameState				= 0xE00B,
 	kUseVausPaddle			= 0xE00C,
 	kLevel					= 0xE01B,
+	kLevelDisplay			= 0xE01C,	// LEVEL_DISP, packed BCD
+	kBrickMap				= 0xE027,	// BRICK_MAP
+	kBrickMapLength			= 0x58D,
 	kLives					= 0xE01D,
 	kBricksLeft				= 0xE038,
 	kControls				= 0xE0BF,
@@ -37,6 +40,7 @@ enum {
 	kPaddleStatus			= 0xE0C4,
 	kCheat1Activated		= 0xE001,
 	kCheat1Counter			= 0xE002,
+	kCheat2Level			= 0xE005,	// CHEAT2_LEVEL (two bytes)
 	kCheat2Activated		= 0xE003,
 	kCheat2Counter			= 0xE004,
 	kBrickHitYPixel			= 0xE53C,

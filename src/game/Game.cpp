@@ -30,6 +30,16 @@ Game::Game(SoundPlayer::PsgSink* sink)
 void
 Game::Tick(const KeyMatrix& keys, uint16_t paddleCount, uint8_t paddleStatus)
 {
+	// A delay the cartridge spends inside its handler: the CPU is halted, so
+	// nothing of the frame happens until it runs out, and what it was waiting
+	// for happens on the frame it does.
+	if (fDelay > 0) {
+		if (--fDelay > 0)
+			return;
+		_ResumePending();
+		return;
+	}
+
 	fInput.Update(keys, paddleCount, paddleStatus);
 	fSoundPlayer.Tick();
 	_UploadSprites();
@@ -43,8 +53,7 @@ Game::Tick(const KeyMatrix& keys, uint16_t paddleCount, uint8_t paddleStatus)
 			_PlayLevel();
 			break;
 		case 2:
-			// TRANSITION_NEXT_LEVEL: NEXT_OR_SAME_LEVEL, which loads the
-			// next level, takes a life or ends the game. Not ported yet.
+			_NextOrSameLevel();
 			break;
 		default:
 			break;
@@ -175,4 +184,172 @@ Game::Frame(bool spriteLimit)
 {
 	Renderer::Render(fScreen, fFrame, spriteLimit);
 	return fFrame;
+}
+
+
+// NEXT_OR_SAME_LEVEL (0x7B94). Three actions, chosen by the transition type:
+// the next level, the same level, or - both of the first two - the life that
+// was lost. The title screen has no level to reload and goes straight to the
+// tail.
+void
+Game::_NextOrSameLevel()
+{
+	if (fState.Read(GameRam::kGameState) == 0) {
+		_BrickRepaintDone();
+		return;
+	}
+
+	switch (fState.Read(GameRam::kLevelTransitionType)) {
+		case GameRam::kLevelTransitionNext:
+		case GameRam::kLevelTransitionNext2:
+			_IncLevel();
+			break;
+		case GameRam::kLevelTransitionSame:
+			_LifeLost();
+			break;
+		default:
+			// TBL_ACTION_LEVEL has three entries; the cartridge would jump
+			// into the table's neighbours.
+			break;
+	}
+}
+
+
+// ACTION_INC_LEVEL (0x7BB1). The displayed level is packed BCD and is
+// incremented with DAA, the level itself in binary; the last level ends the
+// game with the ending.
+void
+Game::_IncLevel()
+{
+	uint8_t display = static_cast<uint8_t>(
+		fState.Read(GameRam::kLevelDisplay) + 1);
+	if ((display & 0x0F) > 9)
+		display = static_cast<uint8_t>(display + 0x06);
+	if (display > 0x9F)
+		display = static_cast<uint8_t>(display + 0x60);
+	fState.Write(GameRam::kLevelDisplay, display);
+
+	const uint8_t level
+		= static_cast<uint8_t>(fState.Read(GameRam::kLevel) + 1);
+	fState.Write(GameRam::kLevel, level);
+
+	if (level != GameRam::kFinalLevel + 1) {
+		fState.Write(GameRam::kTransitionAction, 0);
+		fDelay = 60;
+		return;
+	}
+
+	// The game is over: the levels are cleared, the ending plays. The ending
+	// animation is not ported; the wait before it is.
+	fState.Write(GameRam::kLevel, 0);
+	fState.Write(GameRam::kLevelDisplay, 0);
+	fDelay = 60;
+}
+
+
+// ACTION_LIFE_LOST (0x7C07). Forty-eight frames pass before the life goes,
+// and what happens then depends on how many were left.
+void
+Game::_LifeLost()
+{
+	fDelay = 48;
+	fPending = kPendingLifeLost;
+}
+
+
+void
+Game::_LifeLostDone()
+{
+	const uint8_t lives
+		= static_cast<uint8_t>(fState.Read(GameRam::kLives) - 1);
+	fState.Write(GameRam::kLives, lives);
+
+	if (lives != 0xFF) {
+		// More lives: the game goes back to the title's transition, and waits
+		// sixty frames before it runs.
+		fState.Write(GameRam::kTransitionAction, 0);
+		fDelay = 60;
+		return;
+	}
+
+	// The last life. The level is kept for the cheat, the level shown as 32
+	// when it was the last one.
+	uint16_t level = static_cast<uint16_t>(fState.Read(GameRam::kLevel)
+		| (fState.Read(GameRam::kLevelDisplay) << 8));
+	if (fState.Read(GameRam::kLevel) == GameRam::kFinalLevel)
+		level = 0x321F;
+	fState.Write(GameRam::kCheat2Level, static_cast<uint8_t>(level & 0xFF));
+	fState.Write(GameRam::kCheat2Level + 1, static_cast<uint8_t>(level >> 8));
+
+	// GAME OVER, played at once rather than queued.
+	fState.Write(GameRam::kSoundNumber, SoundCodes::kGameOver);
+	fSoundPlayer.Play();
+
+	// The four sprites that spell it, straight into the sprite table
+	// (GAME_OVER_SPR_PARAMS at 0x7C5D).
+	static const uint8_t kGameOver[4 * 4] = {
+		0x88, 0x44, 0x70, 0x0F,
+		0x88, 0x54, 0x74, 0x0F,
+		0x88, 0x6C, 0x78, 0x0F,
+		0x88, 0x7C, 0x7C, 0x0F
+	};
+	const uint16_t base = fScreen.SpriteAttributeBase();
+	for (int i = 0; i < 4 * 4; i++)
+		fScreen.SetVram(static_cast<uint16_t>(base + i), kGameOver[i]);
+
+	fDelay = 240;
+	fPending = kPendingGameOverClear;
+}
+
+
+void
+Game::_ResumePending()
+{
+	const uint8_t pending = fPending;
+	fPending = kPendingNone;
+	switch (pending) {
+		case kPendingLifeLost:
+			_LifeLostDone();
+			break;
+		case kPendingGameOverClear:
+			_ClearScreen();
+			_BrickRepaintDone();
+			break;
+		default:
+			break;
+	}
+}
+
+
+// CLEAR_SCREEN (0x4227): the name table, the sprite table and the area the
+// falling capsule's parameters live in, all blanked.
+void
+Game::_ClearScreen()
+{
+	const uint16_t nameTable
+		= static_cast<uint16_t>(fScreen.SpriteAttributeBase() - 0x300);
+	for (uint16_t i = 0; i < 0x300; i++)
+		fScreen.SetVram(static_cast<uint16_t>(nameTable + i), 0);
+
+	const uint16_t base = fScreen.SpriteAttributeBase();
+	for (uint16_t i = 0; i < 128; i++)
+		fScreen.SetVram(static_cast<uint16_t>(base + i), 192);
+
+	for (uint16_t i = 0; i < 128; i++)
+		fState.Write(static_cast<uint16_t>(GameRam::kSpriteParamsBase - 4 + i),
+			192);
+}
+
+
+// brick_repaint_action_done (0x7C44): the brick map wiped and the game back at
+// the title.
+void
+Game::_BrickRepaintDone()
+{
+	for (uint16_t i = 0; i < GameRam::kBrickMapLength; i++)
+		fState.Write(static_cast<uint16_t>(GameRam::kBrickMap + i), 0);
+
+	fState.Write(GameRam::kTransitionAction, 0);
+	fState.Write(GameRam::kGameState, 0);
+	fState.Write(GameRam::kDohReceivedHits, 0);
 }
