@@ -662,3 +662,26 @@ One harness note worth keeping: calling a cartridge routine instruction by
 instruction after a bare `Reset()` does not work - the first instruction is not
 the one put in PC and the call never returns. Six hundred frames first, and the
 same call returns with HL and DE where the routine left them.
+
+## The graphics arriving in the VDP
+
+Two routines put the title on the screen before `DRAW_TITLE_SCREEN` writes a
+single character. `LDIRVM_32x24_THIRD` (0x4220) is `BC = 32*24*8/3` and an
+`LDIRVM`, so 2048 bytes straight from the cartridge - the routine is handed an
+address in cartridge memory and reads it there, which is why the same call
+serves `TITLE_TILES` and `IN_GAME_TILES`, three times each into the three thirds
+of the pattern table. `FILL_COLORS_ALL_SCREEN` (0x41FF) is three
+`DECOMPRESS_TILE_COLORS` calls, the title's stream into each third of the
+colour table.
+
+Both are `VdpBlocks`, and `tests/title_graphics_test` runs the cartridge's own
+routines on the reference machine beside them:
+
+    TITLE_TILES pattern table    0000-1800: 0 differ
+    IN_GAME_TILES pattern table  0000-1800: 0 differ
+    FILL_COLORS_ALL_SCREEN       2000-3800: 0 differ
+
+So the pattern and colour tables the title screen starts from are the
+cartridge's, byte for byte. What is left of that screen is the name table, the
+logo, the strings and Taito's logo, and then the state machine that waits for
+START.

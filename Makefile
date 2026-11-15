@@ -20,7 +20,7 @@ TESTS = psg_test rom_test render_test routine_diff input_test brick_test \
 	levels_test lives_test soundplayer_test sound_codes_test isr_test \
 	isr_trace isr_multi advance_test vm_test game_session_test frame_test \
 	ball_out_test vaus_destroy_test life_lost_test title_data_test \
-	tile_colors_test
+	tile_colors_test title_graphics_test
 
 # Every binary depends on every game header: a changed constant in State.h has
 # to rebuild the tests, or a stale binary silently passes.
@@ -70,6 +70,12 @@ tile_colors_test: tests/tile_colors_test.cpp src/game/Screen.cpp \
 		src/game/TileColors.cpp src/game/RomImage.cpp $(REF)
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/tile_colors_test.cpp \
 		src/game/Screen.cpp src/game/TileColors.cpp src/game/RomImage.cpp $(REF)
+
+title_graphics_test: tests/title_graphics_test.cpp src/game/Screen.cpp \
+		src/game/TileColors.cpp src/game/VdpBlocks.cpp src/game/RomImage.cpp $(REF)
+	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/title_graphics_test.cpp \
+		src/game/Screen.cpp src/game/TileColors.cpp src/game/VdpBlocks.cpp \
+		src/game/RomImage.cpp $(REF)
 
 rom_test: tests/rom_test.cpp src/game/RomImage.cpp src/game/RomImage.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/rom_test.cpp src/game/RomImage.cpp
@@ -304,6 +310,7 @@ test: $(TESTS) $(TOOLS) build/arkanoid.rom
 	./life_lost_test build/arkanoid.rom
 	./title_data_test build/arkanoid.rom
 	./tile_colors_test build/arkanoid.rom
+	./title_graphics_test build/arkanoid.rom
 	./advance_test build/arkanoid.rom 400
 # The same sweep again, one write journal at a time: every tick's writes to the
 # sound window compared in order, which names the instruction that differs.
